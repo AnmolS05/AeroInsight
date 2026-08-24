@@ -3,8 +3,8 @@ const { GoogleGenAI } = require('@google/genai');
 const crypto = require('crypto');
 
 // Initialize Gemini SDK
-// Note: SDK looks for GEMINI_API_KEY environment variable automatically.
-const ai = new GoogleGenAI({});
+// Pass the API key explicitly for Vercel Serverless compatibility
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 exports.uploadFlight = async (req, res) => {
     try {
@@ -47,7 +47,7 @@ Provide the output strictly in clean Markdown format with headers.
             });
             reportText = response.text;
         } catch (aiError) {
-            console.error('Gemini API Error (Fallback used):', aiError.message);
+            console.error('Gemini API Error (Fallback used):', JSON.stringify(aiError, null, 2), aiError.message, aiError.stack);
             reportText = `### AI Analysis Unavailable\n\nThe Gemini AI failed to process this log. This is usually because the \`GEMINI_API_KEY\` is missing or invalid in your \`.env\` file.\n\n**Raw Data Summary:**\n- **Total Data Points:** ${telemetryData.length}\n- **Issues Detected:** ${telemetryData.filter(d => d.issue && d.issue !== 'none').length}`;
         }
 
