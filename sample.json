@@ -1,0 +1,95 @@
+[
+  {
+    "latitude": 37.7749,
+    "longitude": -122.4194,
+    "altitude": 0,
+    "battery": 100,
+    "timestamp": "2026-08-24T10:00:00Z"
+  },
+  {
+    "latitude": 37.7750,
+    "longitude": -122.4192,
+    "altitude": 20,
+    "battery": 99,
+    "timestamp": "2026-08-24T10:00:10Z"
+  },
+  {
+    "latitude": 37.7752,
+    "longitude": -122.4188,
+    "altitude": 50,
+    "battery": 97,
+    "timestamp": "2026-08-24T10:00:20Z"
+  },
+  {
+    "latitude": 37.7755,
+    "longitude": -122.4183,
+    "altitude": 80,
+    "battery": 95,
+    "timestamp": "2026-08-24T10:00:30Z"
+  },
+  {
+    "latitude": 37.7758,
+    "longitude": -122.4178,
+    "altitude": 100,
+    "battery": 92,
+    "timestamp": "2026-08-24T10:00:40Z"
+  },
+  {
+    "latitude": 37.7760,
+    "longitude": -122.4170,
+    "altitude": 100,
+    "battery": 90,
+    "timestamp": "2026-08-24T10:00:50Z"
+  },
+  {
+    "latitude": 37.7762,
+    "longitude": -122.4162,
+    "altitude": 105,
+    "battery": 87,
+    "issue": "High wind resistance detected",
+    "timestamp": "2026-08-24T10:01:00Z"
+  },
+  {
+    "latitude": 37.7765,
+    "longitude": -122.4150,
+    "altitude": 110,
+    "battery": 82,
+    "issue": "Rapid battery drain anomaly",
+    "timestamp": "2026-08-24T10:01:10Z"
+  },
+  {
+    "latitude": 37.7767,
+    "longitude": -122.4140,
+    "altitude": 110,
+    "battery": 78,
+    "timestamp": "2026-08-24T10:01:20Z"
+  },
+  {
+    "latitude": 37.7769,
+    "longitude": -122.4132,
+    "altitude": 80,
+    "battery": 75,
+    "timestamp": "2026-08-24T10:01:30Z"
+  },
+  {
+    "latitude": 37.7770,
+    "longitude": -122.4125,
+    "altitude": 40,
+    "battery": 73,
+    "timestamp": "2026-08-24T10:01:40Z"
+  },
+  {
+    "latitude": 37.7771,
+    "longitude": -122.4120,
+    "altitude": 10,
+    "battery": 72,
+    "timestamp": "2026-08-24T10:01:50Z"
+  },
+  {
+    "latitude": 37.7772,
+    "longitude": -122.4118,
+    "altitude": 0,
+    "battery": 71,
+    "timestamp": "2026-08-24T10:02:00Z"
+  }
+]

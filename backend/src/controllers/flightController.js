@@ -43,12 +43,17 @@ Identify:
 Provide the output strictly in clean Markdown format with headers.
 `;
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-        });
-        
-        const reportText = response.text;
+        let reportText = '';
+        try {
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+            });
+            reportText = response.text;
+        } catch (aiError) {
+            console.error('Gemini API Error (Fallback used):', aiError.message);
+            reportText = `### AI Analysis Unavailable\n\nThe Gemini AI failed to process this log. This is usually because the \`GEMINI_API_KEY\` is missing or invalid in your \`.env\` file.\n\n**Raw Data Summary:**\n- **Total Data Points:** ${telemetryData.length}\n- **Issues Detected:** ${telemetryData.filter(d => d.issue && d.issue !== 'none').length}`;
+        }
 
         // 4. Save AI Report
         await new Promise((resolve, reject) => {
