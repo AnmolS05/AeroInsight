@@ -16,19 +16,15 @@ exports.uploadFlight = async (req, res) => {
         const flightId = crypto.randomUUID();
 
         // 1. Insert Flight Record
-        await new Promise((resolve, reject) => {
-            db.run('INSERT INTO flights (id) VALUES (?)', [flightId], function(err) {
-                if (err) reject(err);
-                resolve();
-            });
-        });
+        await db.query('INSERT INTO flights (id) VALUES ($1)', [flightId]);
 
         // 2. Insert Telemetry points
-        const stmt = db.prepare('INSERT INTO telemetry (flight_id, latitude, longitude, altitude, battery, issue, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)');
         for (const point of telemetryData) {
-            stmt.run(flightId, point.latitude, point.longitude, point.altitude, point.battery, point.issue || 'none', point.timestamp);
+            await db.query(
+                'INSERT INTO telemetry (flight_id, latitude, longitude, altitude, battery, issue, timestamp) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                [flightId, point.latitude, point.longitude, point.altitude, point.battery, point.issue || 'none', point.timestamp]
+            );
         }
-        stmt.finalize();
 
         // 3. Trigger AI Analysis
         const prompt = `
@@ -56,12 +52,7 @@ Provide the output strictly in clean Markdown format with headers.
         }
 
         // 4. Save AI Report
-        await new Promise((resolve, reject) => {
-            db.run('INSERT INTO reports (flight_id, report_text) VALUES (?, ?)', [flightId, reportText], function(err) {
-                if (err) reject(err);
-                resolve();
-            });
-        });
+        await db.query('INSERT INTO reports (flight_id, report_text) VALUES ($1, $2)', [flightId, reportText]);
 
         res.status(201).json({ message: 'Flight uploaded and analyzed successfully', flightId });
     } catch (error) {
@@ -70,34 +61,37 @@ Provide the output strictly in clean Markdown format with headers.
     }
 };
 
-exports.getFlights = (req, res) => {
-    db.all('SELECT * FROM flights ORDER BY created_at DESC', [], (err, rows) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
-        }
-        res.json(rows);
-    });
+exports.getFlights = async (req, res) => {
+    try {
+        const result = await db.query('SELECT * FROM flights ORDER BY created_at DESC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Database error' });
+    }
 };
 
-exports.getFlightData = (req, res) => {
-    const { id } = req.params;
-    db.all('SELECT * FROM telemetry WHERE flight_id = ? ORDER BY timestamp ASC', [id], (err, rows) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
-        }
-        res.json(rows);
-    });
+exports.getFlightData = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await db.query('SELECT * FROM telemetry WHERE flight_id = $1 ORDER BY timestamp ASC', [id]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Database error' });
+    }
 };
 
-exports.getFlightReport = (req, res) => {
-    const { id } = req.params;
-    db.get('SELECT report_text FROM reports WHERE flight_id = ?', [id], (err, row) => {
-        if (err) {
-            return res.status(500).json({ error: 'Database error' });
-        }
-        if (!row) {
+exports.getFlightReport = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await db.query('SELECT report_text FROM reports WHERE flight_id = $1', [id]);
+        if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Report not found' });
         }
-        res.json({ report: row.report_text });
-    });
+        res.json({ report: result.rows[0].report_text });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Database error' });
+    }
 };
