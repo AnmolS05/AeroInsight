@@ -11,7 +11,7 @@ function App() {
   const [flightData, setFlightData] = useState([]);
   const [reportText, setReportText] = useState(null);
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:10000';
+  const API_BASE_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:10000');
 
   useEffect(() => {
     fetchFlights();
@@ -20,8 +20,15 @@ function App() {
   const fetchFlights = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/flights`);
+      if (!res.ok) {
+        throw new Error(`API Error: ${res.status}`);
+      }
       const data = await res.json();
-      setFlights(data);
+      if (Array.isArray(data)) {
+        setFlights(data);
+      } else {
+        setFlights([]);
+      }
     } catch (err) {
       console.error('Failed to fetch flights:', err);
     }
@@ -34,8 +41,13 @@ function App() {
 
     try {
       const dataRes = await fetch(`${API_BASE_URL}/api/flights/${id}`);
+      if (!dataRes.ok) throw new Error(`API Error: ${dataRes.status}`);
       const data = await dataRes.json();
-      setFlightData(data);
+      if (Array.isArray(data)) {
+        setFlightData(data);
+      } else {
+        setFlightData([]);
+      }
 
       const reportRes = await fetch(`${API_BASE_URL}/api/flights/${id}/report`);
       if (reportRes.ok) {
