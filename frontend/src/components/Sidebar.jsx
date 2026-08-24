@@ -1,0 +1,145 @@
+import React, { useRef, useState } from 'react';
+import { Upload, PlaneTakeoff, Activity, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
+import Papa from 'papaparse';
+
+export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess, apiUrl }) {
+  const fileInputRef = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const toastId = toast.loading('Uploading and analyzing flight log...');
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const fileContent = event.target.result;
+        let jsonData;
+        
+        if (file.name.toLowerCase().endsWith('.csv')) {
+          const parsed = Papa.parse(fileContent, {
+            header: true,
+            dynamicTyping: true,
+            skipEmptyLines: true
+          });
+          jsonData = parsed.data;
+        } else {
+          jsonData = JSON.parse(fileContent);
+        }
+        
+        const res = await fetch(`${apiUrl}/api/flights`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(jsonData)
+        });
+
+        if (!res.ok) throw new Error('Upload failed: ' + res.statusText);
+        
+        toast.success('Flight log analyzed successfully!', { id: toastId });
+        onUploadSuccess();
+      } catch (err) {
+        toast.error('Failed to parse or upload data. Ensure it matches the required format.', { id: toastId });
+        console.error(err);
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  return (
+    <aside className="w-80 bg-white border-r border-slate-200 flex flex-col h-full shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 relative">
+      <div className="p-6 border-b border-slate-100 bg-gradient-to-br from-brand-50 to-white">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md shadow-brand-500/30">
+            <PlaneTakeoff size={22} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight leading-tight">AeroInsight</h1>
+            <p className="text-xs text-brand-600 font-medium">Drone Telemetry AI</p>
+          </div>
+        </div>
+
+        <button 
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-lg flex items-center justify-center gap-2 font-medium transition-all shadow-sm disabled:opacity-70"
+        >
+          {isUploading ? (
+            <div className="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></div>
+          ) : (
+            <>
+              <Upload size={18} />
+              Upload Flight Log
+            </>
+          )}
+        </button>
+        <input 
+          type="file" 
+          accept=".json,.csv" 
+          ref={fileInputRef} 
+          className="hidden" 
+          onChange={handleFileUpload} 
+        />
+      </div>
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-2 flex items-center gap-2">
+          <Clock size={14} />
+          Recent Flights
+        </h3>
+        
+        <div className="flex flex-col gap-2">
+          {flights.length === 0 ? (
+            <div className="text-sm text-slate-500 text-center p-4 border border-dashed border-slate-200 rounded-lg bg-slate-50">
+              No flight logs found. Upload one to begin.
+            </div>
+          ) : (
+            flights.map(flight => {
+              const isSelected = selectedId === flight.id;
+              const date = new Date(flight.created_at).toLocaleDateString(undefined, { 
+                month: 'short', day: 'numeric', year: 'numeric' 
+              });
+              const time = new Date(flight.created_at).toLocaleTimeString(undefined, { 
+                hour: '2-digit', minute: '2-digit' 
+              });
+
+              return (
+                <button
+                  key={flight.id}
+                  onClick={() => onSelect(flight.id)}
+                  className={`text-left p-3 rounded-lg border transition-all duration-200 group ${
+                    isSelected 
+                    ? 'bg-brand-50 border-brand-200 shadow-[0_2px_12px_rgba(37,99,235,0.06)]' 
+                    : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-1">
+                    <span className={`font-mono text-xs font-semibold ${isSelected ? 'text-brand-700' : 'text-slate-600'}`}>
+                      FLT-{flight.id.substring(0, 6).toUpperCase()}
+                    </span>
+                    {isSelected && <Activity size={14} className="text-brand-500 animate-pulse" />}
+                  </div>
+                  <div className="text-xs text-slate-500 flex items-center gap-1">
+                    <span>{date}</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                    <span>{time}</span>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+      
+      <div className="p-4 border-t border-slate-100 bg-slate-50 text-xs text-slate-400 text-center">
+        Powered by Gemini AI
+      </div>
+    </aside>
+  );
+}

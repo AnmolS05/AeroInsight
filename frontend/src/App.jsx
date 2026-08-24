@@ -1,0 +1,167 @@
+import React, { useState, useEffect } from 'react';
+import Sidebar from './components/Sidebar';
+import Map from './components/Map';
+import ReportViewer from './components/ReportViewer';
+import TelemetryChart from './components/TelemetryChart';
+import { motion } from 'framer-motion';
+
+function App() {
+  const [flights, setFlights] = useState([]);
+  const [selectedFlightId, setSelectedFlightId] = useState(null);
+  const [flightData, setFlightData] = useState([]);
+  const [reportText, setReportText] = useState(null);
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:10000';
+
+  useEffect(() => {
+    fetchFlights();
+  }, []);
+
+  const fetchFlights = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/flights`);
+      const data = await res.json();
+      setFlights(data);
+    } catch (err) {
+      console.error('Failed to fetch flights:', err);
+    }
+  };
+
+  const handleFlightSelect = async (id) => {
+    setSelectedFlightId(id);
+    setFlightData([]);
+    setReportText(null);
+
+    try {
+      const dataRes = await fetch(`${API_BASE_URL}/api/flights/${id}`);
+      const data = await dataRes.json();
+      setFlightData(data);
+
+      const reportRes = await fetch(`${API_BASE_URL}/api/flights/${id}/report`);
+      if (reportRes.ok) {
+        const reportData = await reportRes.json();
+        setReportText(reportData.report);
+      }
+    } catch (err) {
+      console.error('Failed to load flight details:', err);
+    }
+  };
+
+  const handleUploadSuccess = () => {
+    fetchFlights();
+  };
+
+  return (
+    <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
+      <Sidebar 
+        flights={flights} 
+        onSelect={handleFlightSelect} 
+        selectedId={selectedFlightId} 
+        onUploadSuccess={handleUploadSuccess}
+        apiUrl={API_BASE_URL}
+      />
+      
+      <main className="flex-1 flex flex-col p-4 gap-4 h-full overflow-hidden">
+        <header className="bg-white rounded-xl shadow-sm p-4 border border-slate-100 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Dashboard</h1>
+            <p className="text-sm text-slate-500 mt-1">Select a flight from the sidebar to view telemetry and AI analysis.</p>
+          </div>
+          {selectedFlightId && (
+            <div className="px-4 py-1.5 bg-brand-50 text-brand-600 rounded-full text-sm font-medium border border-brand-100 shadow-sm">
+              Flight ID: <span className="font-mono text-xs">{selectedFlightId.split('-')[0]}</span>
+            </div>
+          )}
+        </header>
+
+        <div className="flex-1 flex flex-col gap-4 h-[calc(100%-80px)]">
+          {flightData.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="grid grid-cols-3 gap-4 shrink-0"
+            >
+              <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center">
+                <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Data Points</span>
+                <span className="text-2xl font-bold text-slate-800">{flightData.length}</span>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center">
+                <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Max Altitude</span>
+                <span className="text-2xl font-bold text-slate-800">{Math.max(...flightData.map(d => d.altitude))}m</span>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center">
+                <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Final Battery</span>
+                <span className="text-2xl font-bold text-slate-800">{flightData[flightData.length - 1].battery}%</span>
+              </div>
+            </motion.div>
+          )}
+
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+            <motion.section 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="bg-white rounded-xl shadow-sm border border-slate-100 p-2 overflow-hidden flex flex-col h-full"
+            >
+            <h2 className="text-lg font-semibold text-slate-700 px-2 pt-2 pb-3 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              Flight Path Map
+            </h2>
+            <div className="flex-1 rounded-lg overflow-hidden border border-slate-100 bg-slate-50">
+               {flightData.length > 0 ? (
+                  <Map telemetryData={flightData} />
+               ) : (
+                  <div className="h-full flex items-center justify-center text-slate-400">
+                    <p>{selectedFlightId ? 'Loading map data...' : 'No flight selected'}</p>
+                  </div>
+               )}
+            </div>
+            </motion.section>
+            
+            <motion.section 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 overflow-hidden flex flex-col h-full"
+            >
+             <h2 className="text-lg font-semibold text-slate-700 pb-3 border-b border-slate-100 flex items-center gap-2 mb-3">
+              <span className="w-2 h-2 rounded-full bg-violet-500"></span>
+              Gemini Analysis Report
+            </h2>
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              {reportText ? (
+                <ReportViewer markdown={reportText} />
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-400">
+                  <p>{selectedFlightId ? 'Loading AI report...' : 'Select a flight to view report'}</p>
+                </div>
+              )}
+            </div>
+            </motion.section>
+          </div>
+          
+          {flightData.length > 0 && (
+            <motion.section 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 shrink-0 h-72 flex flex-col"
+            >
+              <h2 className="text-lg font-semibold text-slate-700 pb-3 flex items-center gap-2 mb-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                Telemetry Analytics
+              </h2>
+              <div className="flex-1 min-h-0">
+                <TelemetryChart data={flightData} />
+              </div>
+            </motion.section>
+          )}
+
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default App;
