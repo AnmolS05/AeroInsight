@@ -239,6 +239,40 @@ function App() {
           </ErrorBoundary>
         </div>
       </main>
+
+      {/* Fullscreen Report Modal */}
+      {isReportFullscreen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-full flex flex-col overflow-hidden"
+          >
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-violet-500"></span>
+                Gemini Analysis Report
+              </h2>
+              <button 
+                onClick={() => setIsReportFullscreen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+              {reportText ? (
+                <ReportViewer markdown={reportText} />
+              ) : (
+                <div className="flex items-center justify-center h-40 text-slate-400">
+                  <p>Loading AI report...</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
