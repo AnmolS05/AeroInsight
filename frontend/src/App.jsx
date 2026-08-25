@@ -4,12 +4,14 @@ import Map from './components/Map';
 import ReportViewer from './components/ReportViewer';
 import TelemetryChart from './components/TelemetryChart';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 
 function App() {
   const [flights, setFlights] = useState([]);
   const [selectedFlightId, setSelectedFlightId] = useState(null);
   const [flightData, setFlightData] = useState([]);
   const [reportText, setReportText] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const API_BASE_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:10000');
 
@@ -36,6 +38,7 @@ function App() {
 
   const handleFlightSelect = async (id) => {
     setSelectedFlightId(id);
+    setIsLoading(true);
     setFlightData([]);
     setReportText(null);
 
@@ -56,6 +59,9 @@ function App() {
       }
     } catch (err) {
       console.error('Failed to load flight details:', err);
+      toast.error('Failed to load flight details.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -87,7 +93,12 @@ function App() {
         </header>
 
         <div className="flex-1 flex flex-col gap-4 h-[calc(100%-80px)]">
-          {flightData.length > 0 ? (
+          {isLoading ? (
+            <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl bg-white/50 m-4">
+              <div className="w-12 h-12 border-4 border-slate-200 border-t-brand-500 rounded-full animate-spin mb-4"></div>
+              <p className="text-slate-500 font-medium">Loading flight data...</p>
+            </div>
+          ) : flightData.length > 0 ? (
             <>
               <motion.div 
                 initial={{ opacity: 0, y: -20 }}
