@@ -1,11 +1,14 @@
 import React, { useRef, useState } from 'react';
-import { Upload, PlaneTakeoff, Activity, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Upload, PlaneTakeoff, Activity, Clock, CheckCircle2, AlertCircle, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Papa from 'papaparse';
 
 export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess, apiUrl }) {
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredFlights = flights.filter(f => f.id.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -123,13 +126,24 @@ export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess
           Recent Flights
         </h3>
         
+        <div className="relative mb-4">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search flights..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+          />
+        </div>
+        
         <div className="flex flex-col gap-2">
-          {flights.length === 0 ? (
+          {filteredFlights.length === 0 ? (
             <div className="text-sm text-slate-500 text-center p-4 border border-dashed border-slate-200 rounded-lg bg-slate-50">
-              No flight logs found. Upload one to begin.
+              {searchQuery ? "No matching flights found." : "No flight logs found. Upload one to begin."}
             </div>
           ) : (
-            flights.map(flight => {
+            filteredFlights.map(flight => {
               const isSelected = selectedId === flight.id;
               const date = new Date(flight.created_at).toLocaleDateString(undefined, { 
                 month: 'short', day: 'numeric', year: 'numeric' 
