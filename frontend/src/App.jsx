@@ -107,8 +107,18 @@ function App() {
                 className="grid grid-cols-3 gap-4 shrink-0"
               >
                 <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center">
-                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Data Points</span>
-                  <span className="text-2xl font-bold text-slate-800">{flightData.length}</span>
+                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Flight Duration</span>
+                  <span className="text-2xl font-bold text-slate-800">
+                    {(() => {
+                      if (!flightData || flightData.length < 2) return '0s';
+                      const start = new Date(flightData[0].timestamp).getTime();
+                      const end = new Date(flightData[flightData.length - 1].timestamp).getTime();
+                      const diffS = Math.abs(end - start) / 1000;
+                      if (diffS < 60) return `${Math.floor(diffS)}s`;
+                      const min = Math.floor(diffS / 60);
+                      return `${min}m ${Math.floor(diffS % 60)}s`;
+                    })()}
+                  </span>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center">
                   <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Max Altitude</span>
