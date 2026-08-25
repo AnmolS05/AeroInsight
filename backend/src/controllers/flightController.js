@@ -1,6 +1,7 @@
 const db = require('../config/database');
 const { GoogleGenAI } = require('@google/genai');
 const crypto = require('crypto');
+const mlService = require('../services/mlService');
 
 // Initialize Gemini SDK
 // Pass the API key explicitly for Vercel Serverless compatibility
@@ -49,6 +50,12 @@ Provide the output strictly in clean Markdown format with headers.
         } catch (aiError) {
             console.error('Gemini API Error (Fallback used):', JSON.stringify(aiError, null, 2), aiError.message, aiError.stack);
             reportText = `### AI Analysis Unavailable\n\nThe Gemini AI failed to process this log. This is usually because the \`GEMINI_API_KEY\` is missing or invalid in your \`.env\` file.\n\n**Raw Data Summary:**\n- **Total Data Points:** ${telemetryData.length}\n- **Issues Detected:** ${telemetryData.filter(d => d.issue && d.issue !== 'none').length}`;
+        }
+        
+        // Append ML Risk Score
+        const mlAnalysis = mlService.analyzeFlightRisk(telemetryData);
+        if (mlAnalysis) {
+            reportText += `\n\n### 🤖 ML Flight Risk Assessment\n- **Predicted Risk:** ${mlAnalysis.riskScore === 'High Risk' ? '**🔴 High Risk**' : '**🟢 Low Risk**'}\n- **Telemetry Factors:**\n  - Max Altitude: ${mlAnalysis.features.max_altitude.toFixed(1)}m\n  - Battery Drain: ${mlAnalysis.features.battery_drain.toFixed(1)}%\n  - Est. Duration: ${mlAnalysis.features.flight_duration.toFixed(1)} min\n`;
         }
 
         // 4. Save AI Report
