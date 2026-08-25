@@ -5,6 +5,7 @@ import ReportViewer from './components/ReportViewer';
 import TelemetryChart from './components/TelemetryChart';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   const [flights, setFlights] = useState([]);
@@ -116,6 +117,7 @@ function App() {
         </header>
 
         <div className="flex-1 flex flex-col gap-4 h-[calc(100%-80px)]">
+          <ErrorBoundary>
           {isLoading ? (
             <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl bg-white/50 m-4">
               <div className="w-12 h-12 border-4 border-slate-200 border-t-brand-500 rounded-full animate-spin mb-4"></div>
@@ -223,6 +225,7 @@ function App() {
               </p>
             </motion.div>
           )}
+          </ErrorBoundary>
         </div>
       </main>
     </div>
