@@ -6,6 +6,7 @@ import TelemetryChart from './components/TelemetryChart';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
+import { Maximize2, X } from 'lucide-react';
 
 function App() {
   const [flights, setFlights] = useState([]);
@@ -13,6 +14,7 @@ function App() {
   const [flightData, setFlightData] = useState([]);
   const [reportText, setReportText] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isReportFullscreen, setIsReportFullscreen] = useState(false);
 
   const API_BASE_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:10000');
 
@@ -177,10 +179,19 @@ function App() {
                   transition={{ duration: 0.5, delay: 0.2 }}
                   className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 overflow-hidden flex flex-col h-full"
                 >
-                  <h2 className="text-lg font-semibold text-slate-700 pb-3 border-b border-slate-100 flex items-center gap-2 mb-3">
-                    <span className="w-2 h-2 rounded-full bg-violet-500"></span>
-                    Gemini Analysis Report
-                  </h2>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                    <h2 className="text-lg font-semibold text-slate-700 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-violet-500"></span>
+                      Gemini Analysis Report
+                    </h2>
+                    <button 
+                      onClick={() => setIsReportFullscreen(true)}
+                      className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                      title="View Fullscreen"
+                    >
+                      <Maximize2 size={18} />
+                    </button>
+                  </div>
                   <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
                     {reportText ? (
                       <ReportViewer markdown={reportText} />
