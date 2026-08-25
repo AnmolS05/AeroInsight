@@ -3,13 +3,23 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 
-AeroInsight is a full-stack web application designed for drone telemetry analysis. It integrates a Node.js/Express backend, an SQLite database for log storage, a React/Vite frontend with dynamic mapping via Leaflet, and AI-powered anomaly detection using the Google Gemini API.
+AeroInsight is a full-stack web application designed for drone telemetry analysis. It integrates a Node.js/Express backend, a PostgreSQL/SQLite database for log storage, a React/Vite frontend with dynamic mapping via Leaflet, and a dual AI-pipeline featuring a custom Machine Learning risk predictor alongside generative AI anomaly detection using the Google Gemini API.
+
+---
+
+## ✨ Key Features
+- **Generative AI Analysis**: Gemini evaluates flight paths, identifies hazards, and recommends maintenance steps.
+- **Custom ML Risk Scoring**: An integrated Random Forest decision model statically analyzes telemetry metrics (battery drain, duration, altitude) to predict operational risk levels.
+- **Interactive Mapping**: Visualizes drone paths on detailed geographical maps.
+- **Intelligent Search**: Easily filter past flights by ID directly from the sleek UI.
+- **CSV & JSON Support**: Upload logs effortlessly in multiple data formats.
 
 ---
 
 ## 🏗️ Architecture & Directory Structure
-- `/backend`: Node.js, Express, SQLite, and Gemini API integration.
-- `/frontend`: React, Vite, Tailwind CSS, Leaflet Maps.
+- `/backend`: Node.js, Express, SQLite, Custom ML Inference Service, and Gemini API integration.
+- `/frontend`: React, Vite, Tailwind CSS, Leaflet Maps, Framer Motion animations.
+- `/ml`: Python scripts and synthetic datasets for training the custom offline ML models.
 - `/.github/workflows`: CI/CD pipelines for automatic deployment.
 
 ---
