@@ -102,3 +102,20 @@ exports.getFlightReport = async (req, res) => {
         res.status(500).json({ error: 'Database error' });
     }
 };
+
+exports.deleteFlight = async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db.query('DELETE FROM telemetry WHERE flight_id = $1', [id]);
+        await db.query('DELETE FROM reports WHERE flight_id = $1', [id]);
+        const result = await db.query('DELETE FROM flights WHERE id = $1', [id]);
+        
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Flight not found' });
+        }
+        res.json({ message: 'Flight deleted successfully' });
+    } catch (err) {
+        console.error('Error deleting flight:', err);
+        res.status(500).json({ error: 'Database error' });
+    }
+};

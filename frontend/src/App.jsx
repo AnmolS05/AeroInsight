@@ -69,6 +69,28 @@ function App() {
     fetchFlights();
   };
 
+  const handleFlightDelete = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/flights/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        toast.success('Flight deleted successfully');
+        if (selectedFlightId === id) {
+          setSelectedFlightId(null);
+          setFlightData([]);
+          setReportText(null);
+        }
+        fetchFlights();
+      } else {
+        toast.error('Failed to delete flight');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to delete flight');
+    }
+  };
+
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
       <Sidebar 
@@ -76,6 +98,7 @@ function App() {
         onSelect={handleFlightSelect} 
         selectedId={selectedFlightId} 
         onUploadSuccess={handleUploadSuccess}
+        onDelete={handleFlightDelete}
         apiUrl={API_BASE_URL}
       />
       

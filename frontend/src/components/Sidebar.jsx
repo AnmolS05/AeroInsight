@@ -1,9 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { Upload, PlaneTakeoff, Activity, Clock, CheckCircle2, AlertCircle, Search } from 'lucide-react';
+import { Upload, PlaneTakeoff, Activity, Clock, CheckCircle2, AlertCircle, Search, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Papa from 'papaparse';
 
-export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess, apiUrl }) {
+export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess, onDelete, apiUrl }) {
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -153,27 +153,40 @@ export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess
               });
 
               return (
-                <button
-                  key={flight.id}
-                  onClick={() => onSelect(flight.id)}
-                  className={`text-left p-3 rounded-lg border transition-all duration-200 group ${
-                    isSelected 
-                    ? 'bg-brand-50 border-brand-200 shadow-[0_2px_12px_rgba(37,99,235,0.06)]' 
-                    : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-1">
-                    <span className={`font-mono text-xs font-semibold ${isSelected ? 'text-brand-700' : 'text-slate-600'}`}>
-                      FLT-{flight.id.substring(0, 6).toUpperCase()}
-                    </span>
-                    {isSelected && <Activity size={14} className="text-brand-500 animate-pulse" />}
-                  </div>
-                  <div className="text-xs text-slate-500 flex items-center gap-1">
-                    <span>{date}</span>
-                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                    <span>{time}</span>
-                  </div>
-                </button>
+                <div key={flight.id} className="group relative flex items-center">
+                  <button
+                    onClick={() => onSelect(flight.id)}
+                    className={`w-full text-left p-3 rounded-lg border transition-all duration-200 ${
+                      isSelected 
+                      ? 'bg-brand-50 border-brand-200 shadow-[0_2px_12px_rgba(37,99,235,0.06)]' 
+                      : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-sm'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-1 pr-6">
+                      <span className={`font-mono text-xs font-semibold ${isSelected ? 'text-brand-700' : 'text-slate-600'}`}>
+                        FLT-{flight.id.substring(0, 6).toUpperCase()}
+                      </span>
+                      {isSelected && <Activity size={14} className="text-brand-500 animate-pulse" />}
+                    </div>
+                    <div className="text-xs text-slate-500 flex items-center gap-1">
+                      <span>{date}</span>
+                      <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                      <span>{time}</span>
+                    </div>
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm('Are you sure you want to delete this flight log?')) {
+                        onDelete(flight.id);
+                      }
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md opacity-0 group-hover:opacity-100 transition-all z-10"
+                    title="Delete flight"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               );
             })
           )}

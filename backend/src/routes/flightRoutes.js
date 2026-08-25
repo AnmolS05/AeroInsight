@@ -7,5 +7,6 @@ router.post('/', validateTelemetry, flightController.uploadFlight);
 router.get('/', flightController.getFlights);
 router.get('/:id', flightController.getFlightData);
 router.get('/:id/report', flightController.getFlightReport);
+router.delete('/:id', flightController.deleteFlight);
 
 module.exports = router;
