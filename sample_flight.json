@@ -1,0 +1,50 @@
+[
+  {
+    "timestamp": "2023-10-27T10:00:00Z",
+    "latitude": 37.7749,
+    "longitude": -122.4194,
+    "altitude": 10.5,
+    "battery": 98,
+    "issue": "none"
+  },
+  {
+    "timestamp": "2023-10-27T10:00:05Z",
+    "latitude": 37.7750,
+    "longitude": -122.4195,
+    "altitude": 15.2,
+    "battery": 95,
+    "issue": "none"
+  },
+  {
+    "timestamp": "2023-10-27T10:00:10Z",
+    "latitude": 37.7751,
+    "longitude": -122.4196,
+    "altitude": 22.0,
+    "battery": 90,
+    "issue": "motor vibration detected"
+  },
+  {
+    "timestamp": "2023-10-27T10:00:15Z",
+    "latitude": 37.7752,
+    "longitude": -122.4197,
+    "altitude": 25.5,
+    "battery": 85,
+    "issue": "none"
+  },
+  {
+    "timestamp": "2023-10-27T10:00:20Z",
+    "latitude": 37.7753,
+    "longitude": -122.4198,
+    "altitude": 18.0,
+    "battery": 79,
+    "issue": "rapid battery drain warning"
+  },
+  {
+    "timestamp": "2023-10-27T10:00:25Z",
+    "latitude": 37.7754,
+    "longitude": -122.4199,
+    "altitude": 5.0,
+    "battery": 75,
+    "issue": "none"
+  }
+]

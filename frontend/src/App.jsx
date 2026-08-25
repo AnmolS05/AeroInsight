@@ -87,89 +87,98 @@ function App() {
         </header>
 
         <div className="flex-1 flex flex-col gap-4 h-[calc(100%-80px)]">
-          {flightData.length > 0 && (
+          {flightData.length > 0 ? (
+            <>
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="grid grid-cols-3 gap-4 shrink-0"
+              >
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center">
+                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Data Points</span>
+                  <span className="text-2xl font-bold text-slate-800">{flightData.length}</span>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center">
+                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Max Altitude</span>
+                  <span className="text-2xl font-bold text-slate-800">{Math.max(...flightData.map(d => d.altitude))}m</span>
+                </div>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center">
+                  <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Final Battery</span>
+                  <span className="text-2xl font-bold text-slate-800">{flightData[flightData.length - 1].battery}%</span>
+                </div>
+              </motion.div>
+
+              <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
+                <motion.section 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.1 }}
+                  className="bg-white rounded-xl shadow-sm border border-slate-100 p-2 overflow-hidden flex flex-col h-full"
+                >
+                  <h2 className="text-lg font-semibold text-slate-700 px-2 pt-2 pb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    Flight Path Map
+                  </h2>
+                  <div className="flex-1 rounded-lg overflow-hidden border border-slate-100 bg-slate-50">
+                    <Map telemetryData={flightData} />
+                  </div>
+                </motion.section>
+                
+                <motion.section 
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.2 }}
+                  className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 overflow-hidden flex flex-col h-full"
+                >
+                  <h2 className="text-lg font-semibold text-slate-700 pb-3 border-b border-slate-100 flex items-center gap-2 mb-3">
+                    <span className="w-2 h-2 rounded-full bg-violet-500"></span>
+                    Gemini Analysis Report
+                  </h2>
+                  <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                    {reportText ? (
+                      <ReportViewer markdown={reportText} />
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-slate-400">
+                        <p>Loading AI report...</p>
+                      </div>
+                    )}
+                  </div>
+                </motion.section>
+              </div>
+              
+              <motion.section 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 shrink-0 h-72 flex flex-col"
+              >
+                <h2 className="text-lg font-semibold text-slate-700 pb-3 flex items-center gap-2 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                  Telemetry Analytics
+                </h2>
+                <div className="flex-1 min-h-0">
+                  <TelemetryChart data={flightData} />
+                </div>
+              </motion.section>
+            </>
+          ) : (
             <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="grid grid-cols-3 gap-4 shrink-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl bg-white/50 m-4"
             >
-              <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center">
-                <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Data Points</span>
-                <span className="text-2xl font-bold text-slate-800">{flightData.length}</span>
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 shadow-inner">
+                <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
               </div>
-              <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center">
-                <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Max Altitude</span>
-                <span className="text-2xl font-bold text-slate-800">{Math.max(...flightData.map(d => d.altitude))}m</span>
-              </div>
-              <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center">
-                <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">Final Battery</span>
-                <span className="text-2xl font-bold text-slate-800">{flightData[flightData.length - 1].battery}%</span>
-              </div>
+              <h2 className="text-xl font-semibold text-slate-700 mb-2">Welcome to AeroInsight</h2>
+              <p className="text-slate-500 max-w-md text-center">
+                Select a flight log from the sidebar to view its telemetry, map, and AI-powered analysis, or upload a new flight log to get started.
+              </p>
             </motion.div>
           )}
-
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
-            <motion.section 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="bg-white rounded-xl shadow-sm border border-slate-100 p-2 overflow-hidden flex flex-col h-full"
-            >
-            <h2 className="text-lg font-semibold text-slate-700 px-2 pt-2 pb-3 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              Flight Path Map
-            </h2>
-            <div className="flex-1 rounded-lg overflow-hidden border border-slate-100 bg-slate-50">
-               {flightData.length > 0 ? (
-                  <Map telemetryData={flightData} />
-               ) : (
-                  <div className="h-full flex items-center justify-center text-slate-400">
-                    <p>{selectedFlightId ? 'Loading map data...' : 'No flight selected'}</p>
-                  </div>
-               )}
-            </div>
-            </motion.section>
-            
-            <motion.section 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 overflow-hidden flex flex-col h-full"
-            >
-             <h2 className="text-lg font-semibold text-slate-700 pb-3 border-b border-slate-100 flex items-center gap-2 mb-3">
-              <span className="w-2 h-2 rounded-full bg-violet-500"></span>
-              Gemini Analysis Report
-            </h2>
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-              {reportText ? (
-                <ReportViewer markdown={reportText} />
-              ) : (
-                <div className="h-full flex items-center justify-center text-slate-400">
-                  <p>{selectedFlightId ? 'Loading AI report...' : 'Select a flight to view report'}</p>
-                </div>
-              )}
-            </div>
-            </motion.section>
-          </div>
-          
-          {flightData.length > 0 && (
-            <motion.section 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 shrink-0 h-72 flex flex-col"
-            >
-              <h2 className="text-lg font-semibold text-slate-700 pb-3 flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                Telemetry Analytics
-              </h2>
-              <div className="flex-1 min-h-0">
-                <TelemetryChart data={flightData} />
-              </div>
-            </motion.section>
-          )}
-
         </div>
       </main>
     </div>

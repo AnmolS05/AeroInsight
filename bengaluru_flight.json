@@ -1,0 +1,58 @@
+[
+  {
+    "timestamp": "2023-11-15T08:00:00Z",
+    "latitude": 12.9716,
+    "longitude": 77.5946,
+    "altitude": 15.0,
+    "battery": 100,
+    "issue": "none"
+  },
+  {
+    "timestamp": "2023-11-15T08:00:05Z",
+    "latitude": 12.9720,
+    "longitude": 77.5950,
+    "altitude": 22.5,
+    "battery": 97,
+    "issue": "none"
+  },
+  {
+    "timestamp": "2023-11-15T08:00:10Z",
+    "latitude": 12.9725,
+    "longitude": 77.5955,
+    "altitude": 35.0,
+    "battery": 93,
+    "issue": "high wind resistance detected"
+  },
+  {
+    "timestamp": "2023-11-15T08:00:15Z",
+    "latitude": 12.9730,
+    "longitude": 77.5960,
+    "altitude": 40.2,
+    "battery": 88,
+    "issue": "none"
+  },
+  {
+    "timestamp": "2023-11-15T08:00:20Z",
+    "latitude": 12.9735,
+    "longitude": 77.5965,
+    "altitude": 38.0,
+    "battery": 82,
+    "issue": "motor temperature warning"
+  },
+  {
+    "timestamp": "2023-11-15T08:00:25Z",
+    "latitude": 12.9740,
+    "longitude": 77.5970,
+    "altitude": 25.0,
+    "battery": 75,
+    "issue": "none"
+  },
+  {
+    "timestamp": "2023-11-15T08:00:30Z",
+    "latitude": 12.9742,
+    "longitude": 77.5975,
+    "altitude": 10.0,
+    "battery": 70,
+    "issue": "none"
+  }
+]
