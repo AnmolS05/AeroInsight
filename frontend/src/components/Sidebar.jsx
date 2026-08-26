@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Upload, PlaneTakeoff, Activity, Clock, CheckCircle2, AlertCircle, Search, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Papa from 'papaparse';
+import { parseFlightLog } from '../utils/flightParser';
 
 export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess, onDelete, apiUrl }) {
   const fileInputRef = useRef(null);
@@ -17,71 +17,26 @@ export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess
     setIsUploading(true);
     const toastId = toast.loading('Uploading and analyzing flight log...');
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const fileContent = event.target.result;
-        let jsonData;
-        
-        if (file.name.toLowerCase().endsWith('.csv')) {
-          const parsed = Papa.parse(fileContent, {
-            header: true,
-            dynamicTyping: true,
-            skipEmptyLines: true,
-            transformHeader: h => h.trim().toLowerCase()
-          });
-          // Map data and generate a mock flight path if GPS coordinates are missing
-          let currentLat = 37.7749;
-          let currentLng = -122.4194;
-          
-          jsonData = parsed.data.map((row, index) => {
-            const alt = row['altitude (meters)'] ?? row.altitude ?? row.alt ?? 0;
-            const bat = row['battery remaining (%)'] ?? row.battery ?? row.bat ?? 100;
-            const issue = row['notes'] ?? row['obstacles encountered'] ?? row.issue ?? 'none';
-            const time = row['flight date'] ?? row.timestamp ?? new Date(Date.now() + index * 60000).toISOString();
-            
-            let lat = row.latitude ?? row.lat;
-            let lng = row.longitude ?? row.lng;
-            
-            if (lat === undefined || lng === undefined) {
-               currentLat += (Math.random() - 0.5) * 0.01;
-               currentLng += (Math.random() - 0.5) * 0.01;
-               lat = currentLat;
-               lng = currentLng;
-            }
+    try {
+      const jsonData = await parseFlightLog(file);
+      
+      const res = await fetch(`${apiUrl}/api/flights`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(jsonData)
+      });
 
-            return {
-              latitude: Number(lat) || 0,
-              longitude: Number(lng) || 0,
-              altitude: Number(alt) || 0,
-              battery: Number(bat) || 0,
-              issue: String(issue),
-              timestamp: String(time)
-            };
-          });
-        } else {
-          jsonData = JSON.parse(fileContent);
-        }
-        
-        const res = await fetch(`${apiUrl}/api/flights`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(jsonData)
-        });
-
-        if (!res.ok) throw new Error('Upload failed: ' + res.statusText);
-        
-        toast.success('Flight log analyzed successfully!', { id: toastId });
-        onUploadSuccess();
-      } catch (err) {
-        toast.error('Failed to parse or upload data. Ensure it matches the required format.', { id: toastId });
-        console.error(err);
-      } finally {
-        setIsUploading(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.readAsText(file);
+      if (!res.ok) throw new Error('Upload failed: ' + res.statusText);
+      
+      toast.success('Flight log analyzed successfully!', { id: toastId });
+      onUploadSuccess();
+    } catch (err) {
+      toast.error('Failed to parse or upload data. Ensure it matches the required format.', { id: toastId });
+      console.error(err);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   return (
