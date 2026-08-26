@@ -1,75 +1,115 @@
-# AeroInsight 🚁
+<div align="center">
+  <div style="padding: 1.5rem; background: linear-gradient(145deg, #0a0f1c, #0b1120); border-radius: 1rem; border: 1px solid rgba(99,102,241,0.2); display: inline-block; box-shadow: 0 0 30px rgba(99,102,241,0.15);">
+    <h1 style="color: white; margin: 0; font-family: -apple-system, sans-serif; letter-spacing: -1px; font-weight: 900;">AeroInsight <span style="color: #6366f1;">Intelligence</span></h1>
+  </div>
+  <p align="center" style="color: #94a3b8; font-weight: 500; font-family: monospace; letter-spacing: 0.05em; margin-top: 1rem;">
+    ADVANCED DRONE TELEMETRY & AI RISK ASSESSMENT PLATFORM
+  </p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-6366f1.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+  [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+  [![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+  [![Gemini AI](https://img.shields.io/badge/Gemini_AI-000000?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
+</div>
 
-AeroInsight is a full-stack web application designed for drone telemetry analysis. It integrates a Node.js/Express backend, a PostgreSQL/SQLite database for log storage, a React/Vite frontend with dynamic mapping via Leaflet, and a dual AI-pipeline featuring a custom Machine Learning risk predictor alongside generative AI anomaly detection using the Google Gemini API.
+<br />
 
----
-
-## ✨ Key Features
-- **Generative AI Analysis**: Gemini evaluates flight paths, identifies hazards, and recommends maintenance steps.
-- **Custom ML Risk Scoring**: An integrated Random Forest decision model statically analyzes telemetry metrics (battery drain, duration, altitude) to predict operational risk levels.
-- **Interactive Mapping**: Visualizes drone paths on detailed geographical maps.
-- **Intelligent Search**: Easily filter past flights by ID directly from the sleek UI.
-- **CSV & JSON Support**: Upload logs effortlessly in multiple data formats.
-
----
-
-## 🏗️ Architecture & Directory Structure
-- `/backend`: Node.js, Express, SQLite, Custom ML Inference Service, and Gemini API integration.
-- `/frontend`: React, Vite, Tailwind CSS, Leaflet Maps, Framer Motion animations.
-- `/ml`: Python scripts and synthetic datasets for training the custom offline ML models.
-- `/.github/workflows`: CI/CD pipelines for automatic deployment.
+**AeroInsight** is an enterprise-grade web application designed for the ingestion, visualization, and intelligent analysis of drone telemetry data. Featuring a **Deep Dark Glassmorphic UI**, a robust Node.js/Express backend with global error handling, and a dual-pipeline AI architecture, AeroInsight empowers drone operators to instantly assess flight risks and anomalies.
 
 ---
 
-## 🚀 Getting Started
+## ⚡ Core Architecture & Capabilities
+
+### 1. Dual AI-Pipeline 🧠
+* **Generative Analysis (Google Gemini API):** Evaluates flight paths contextually, identifying hazards, environmental anomalies, and generating human-readable maintenance recommendations.
+* **Deterministic ML Scoring (Custom Random Forest):** A proprietary, offline machine learning model that analyzes raw telemetry metrics (battery drain curves, duration, altitude volatility) to output a deterministic risk classification (High/Low Risk).
+
+### 2. Deep Dark UI / UX 🎨
+* **Glassmorphic Design System:** Built with Tailwind CSS, utilizing `backdrop-blur`, semi-transparent indigo overlays, and dynamic micro-animations.
+* **Geospatial Mapping:** Interactive flight path visualization via Leaflet.js with custom glowing markers.
+* **Real-time Telemetry Analytics:** High-performance charting via Recharts.
+
+### 3. Clean Backend Architecture 🏗️
+* **Express Pipeline:** Structured with strict MVC patterns (Controllers, Services, Routes).
+* **Global Error Handling:** Standardized error responses through centralized middleware, avoiding fragile try-catch nesting.
+* **SQLite/PostgreSQL Storage:** Reliable relational storage for flight metadata and AI reports.
+
+---
+
+## 📁 Repository Structure
+
+```plaintext
+AeroInsight/
+├── backend/               # Node.js backend infrastructure
+│   ├── src/
+│   │   ├── config/        # Database initialization & env config
+│   │   ├── controllers/   # Request handlers (flightController.js)
+│   │   ├── middlewares/   # Express middlewares (errorHandler.js, validate.js)
+│   │   ├── ml_models/     # Exported Random Forest parameters
+│   │   ├── routes/        # API route definitions
+│   │   └── services/      # Business logic and ML inference wrappers
+│   └── package.json
+├── frontend/              # React frontend (Vite)
+│   ├── src/
+│   │   ├── components/    # Reusable UI components (Sidebar, Map, TelemetryChart)
+│   │   ├── index.css      # Tailwind configuration & Deep Dark theme overrides
+│   │   └── App.jsx        # Main layout and state management
+│   └── package.json
+├── ml/                    # Data science & ML training pipelines (Python)
+│   └── synthetic_data.py  # Model generation scripts
+└── docker-compose.yml     # Container orchestration
+```
+
+---
+
+## 🚀 Deployment & Installation
 
 ### Prerequisites
-- Node.js (v18+)
-- Docker & Docker Compose (Optional, for containerized setup)
-- A Google Gemini API Key
+* **Node.js** (v18+)
+* **Docker & Docker Compose** (Optional, for zero-config containerized setup)
+* **Google Gemini API Key** (Required for generative reports)
 
-### 🐳 Quick Start (Docker)
-The easiest way to run the full stack locally is with Docker:
-1. Clone the repository.
-2. In the `backend` folder, copy `.env.example` to `.env` and add your `GEMINI_API_KEY`.
-3. In the root directory, run:
+### Option 1: Docker (Recommended)
+1. Clone the repository and navigate to the project root.
+2. Provide your API key in `backend/.env`:
+   ```bash
+   echo "GEMINI_API_KEY=your_key_here" > backend/.env
+   ```
+3. Boot the orchestrated containers:
    ```bash
    docker-compose up --build
    ```
-4. Access the frontend at `http://localhost:5173` and the backend API at `http://localhost:10000`.
+4. Access the AeroInsight dashboard at `http://localhost:5173`.
 
-### 💻 Manual Setup
+### Option 2: Manual Initialization
+**1. Backend Initialization:**
+```bash
+cd backend
+npm install
+cp .env.example .env  # Add your GEMINI_API_KEY here
+npm run dev
+```
 
-#### Backend Setup
-1. Navigate to the `backend` directory: `cd backend`
-2. Install dependencies: `npm install`
-3. Create a `.env` file based on `.env.example`:
-   ```bash
-   cp .env.example .env
-   ```
-4. Edit the `.env` file and add your `GEMINI_API_KEY`.
-5. Start the backend server: `npm run dev`
-   The backend will run on `http://localhost:10000`.
-
-#### Frontend Setup
-1. Open a new terminal and navigate to the `frontend` directory: `cd frontend`
-2. Install dependencies: `npm install`
-3. Start the development server: `npm run dev`
-4. The frontend will be available at `http://localhost:5173`.
+**2. Frontend Initialization:**
+```bash
+cd ../frontend
+npm install
+npm run dev
+```
 
 ---
 
-## 📖 Usage
-1. Open the frontend in your browser.
-2. Use the "Upload Flight Log" button in the sidebar to upload a JSON telemetry file.
-3. Once uploaded, the backend will process the coordinates, save them to the database, and trigger Gemini for anomaly analysis.
-4. Select the flight from the sidebar to view the flight path on the map and read the AI-generated report.
+## 🛡️ Usage Workflow
+1. Access the web interface.
+2. Click **UPLOAD FLIGHT LOG** to ingest a `.json` or `.csv` telemetry payload.
+3. The backend parses the data, persists the flight metrics, executes the ML static model, and asynchronously queries Gemini.
+4. Select the newly generated flight ID (e.g., `FLT-A1B2C3`) from the Sidebar.
+5. Review the telemetry charts, map paths, and the unified AI intelligence report.
+
+---
 
 ## 🤝 Contributing
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) for more details.
+We adhere to strict architectural standards. Please review our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before submitting Pull Requests. Focus on maintaining the Deep Dark aesthetic and utilizing the global error handlers.
 
 ## 📄 License
-This project is licensed under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE).
