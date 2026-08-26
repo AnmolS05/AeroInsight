@@ -22,9 +22,10 @@ app.get('/', (req, res) => {
 // Global Error Handler
 app.use(errorHandler);
 
-if (process.env.NODE_ENV !== 'production') {
+// Start server if executed directly (e.g., node src/index.js), bypass if imported (e.g., by Vercel/Serverless)
+if (require.main === module) {
     app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
+        console.log(`Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
     });
 }
 
