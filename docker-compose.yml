@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: aeroinsight
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: aeroinsight
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   backend:
     build:
       context: ./backend
@@ -9,9 +20,12 @@ services:
     environment:
       - PORT=10000
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DATABASE_URL=postgres://aeroinsight:password@db:5432/aeroinsight
     volumes:
       - ./backend:/app
       - /app/node_modules
+    depends_on:
+      - db
 
   frontend:
     build:
@@ -22,3 +36,6 @@ services:
       - VITE_API_BASE_URL=http://localhost:10000
     depends_on:
       - backend
+
+volumes:
+  postgres_data:

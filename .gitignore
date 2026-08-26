@@ -117,3 +117,6 @@ dist
 # IDEs
 .idea/
 .vscode/
+
+.vercel
+.env*

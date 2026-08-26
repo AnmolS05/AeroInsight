@@ -85,28 +85,30 @@ export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess
   };
 
   return (
-    <aside className="w-80 bg-white border-r border-slate-200 flex flex-col h-full shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 relative">
-      <div className="p-6 border-b border-slate-100 bg-gradient-to-br from-brand-50 to-white">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white shadow-md shadow-brand-500/30">
-            <PlaneTakeoff size={22} />
+    <aside className="w-80 bg-[#0b1120]/80 backdrop-blur-2xl border-r border-indigo-500/20 flex flex-col h-full shadow-[4px_0_24px_rgba(0,0,0,0.2)] z-20 relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-64 h-64 bg-indigo-500/10 blur-[80px] rounded-full pointer-events-none" />
+      
+      <div className="p-8 border-b border-indigo-500/20 bg-[#0a0f1c]/50 relative z-10">
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-12 h-12 rounded-[1rem] bg-indigo-500/10 flex items-center justify-center text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.2)] border border-indigo-500/30">
+            <PlaneTakeoff size={24} className="stroke-[2.5]" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight leading-tight">AeroInsight</h1>
-            <p className="text-xs text-brand-600 font-medium">Drone Telemetry AI</p>
+            <h1 className="text-2xl font-black text-white tracking-tight drop-shadow-md">AeroInsight</h1>
+            <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mt-1">Drone Telemetry AI</p>
           </div>
         </div>
 
         <button 
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-lg flex items-center justify-center gap-2 font-medium transition-all shadow-sm disabled:opacity-70"
+          className="w-full py-3.5 px-4 bg-indigo-500 hover:bg-indigo-400 text-white rounded-[1rem] flex items-center justify-center gap-3 font-black uppercase tracking-widest text-xs transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] disabled:opacity-70 group"
         >
           {isUploading ? (
-            <div className="w-5 h-5 border-2 border-slate-400 border-t-white rounded-full animate-spin"></div>
+            <div className="w-5 h-5 border-2 border-indigo-200 border-t-white rounded-full animate-spin"></div>
           ) : (
             <>
-              <Upload size={18} />
+              <Upload size={18} className="group-hover:-translate-y-1 transition-transform" />
               Upload Flight Log
             </>
           )}
@@ -120,26 +122,26 @@ export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-2 flex items-center gap-2">
-          <Clock size={14} />
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6 relative z-10">
+        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2 flex items-center gap-2 drop-shadow-md">
+          <Clock size={14} className="text-indigo-400" />
           Recent Flights
         </h3>
         
-        <div className="relative mb-4">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="relative mb-6">
+          <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" />
           <input
             type="text"
             placeholder="Search flights..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all"
+            className="w-full bg-[#0a0f1c] border border-indigo-500/20 rounded-[1rem] pl-10 pr-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all font-medium shadow-inner"
           />
         </div>
         
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {filteredFlights.length === 0 ? (
-            <div className="text-sm text-slate-500 text-center p-4 border border-dashed border-slate-200 rounded-lg bg-slate-50">
+            <div className="text-xs text-slate-500 font-bold text-center p-6 border border-indigo-500/10 rounded-[1rem] bg-[#0a0f1c]/50">
               {searchQuery ? "No matching flights found." : "No flight logs found. Upload one to begin."}
             </div>
           ) : (
@@ -156,21 +158,21 @@ export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess
                 <div key={flight.id} className="group relative flex items-center">
                   <button
                     onClick={() => onSelect(flight.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition-all duration-200 ${
+                    className={`w-full text-left p-4 rounded-[1rem] border transition-all duration-300 ${
                       isSelected 
-                      ? 'bg-brand-50 border-brand-200 shadow-[0_2px_12px_rgba(37,99,235,0.06)]' 
-                      : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-sm'
+                      ? 'bg-indigo-500/10 border-indigo-500/40 shadow-[0_0_15px_rgba(99,102,241,0.15)]' 
+                      : 'bg-[#0a0f1c]/50 border-indigo-500/10 hover:border-indigo-500/30 hover:bg-indigo-500/5'
                     }`}
                   >
-                    <div className="flex items-start justify-between mb-1 pr-6">
-                      <span className={`font-mono text-xs font-semibold ${isSelected ? 'text-brand-700' : 'text-slate-600'}`}>
+                    <div className="flex items-start justify-between mb-2 pr-6">
+                      <span className={`font-mono text-[11px] font-black uppercase tracking-widest ${isSelected ? 'text-indigo-400 drop-shadow-md' : 'text-slate-400'}`}>
                         FLT-{flight.id.substring(0, 6).toUpperCase()}
                       </span>
-                      {isSelected && <Activity size={14} className="text-brand-500 animate-pulse" />}
+                      {isSelected && <Activity size={14} className="text-indigo-400 animate-pulse drop-shadow-[0_0_8px_rgba(99,102,241,0.8)]" />}
                     </div>
-                    <div className="text-xs text-slate-500 flex items-center gap-1">
+                    <div className="text-[10px] text-slate-500 font-bold flex items-center gap-2">
                       <span>{date}</span>
-                      <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                      <span className="w-1 h-1 rounded-full bg-slate-600"></span>
                       <span>{time}</span>
                     </div>
                   </button>
@@ -181,7 +183,7 @@ export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess
                         onDelete(flight.id);
                       }
                     }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md opacity-0 group-hover:opacity-100 transition-all z-10"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-all z-10 border border-transparent hover:border-rose-500/20"
                     title="Delete flight"
                   >
                     <Trash2 size={16} />
@@ -193,7 +195,8 @@ export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess
         </div>
       </div>
       
-      <div className="p-4 border-t border-slate-100 bg-slate-50 text-xs text-slate-400 text-center">
+      <div className="p-5 border-t border-indigo-500/20 bg-[#0a0f1c]/80 text-[9px] font-black uppercase tracking-widest text-slate-500 text-center relative z-10 flex items-center justify-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
         Powered by Gemini AI
       </div>
     </aside>
