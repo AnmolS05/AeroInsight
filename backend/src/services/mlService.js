@@ -41,17 +41,46 @@ function predictRisk(features) {
     return riskClass;
 }
 
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Earth radius in meters
+    const toRadians = (deg) => (deg * Math.PI) / 180;
+    const φ1 = toRadians(lat1);
+    const φ2 = toRadians(lat2);
+    const Δφ = toRadians(lat2 - lat1);
+    const Δλ = toRadians(lon2 - lon1);
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in meters
+}
+
 function analyzeFlightRisk(telemetryData) {
     if (!telemetryData || telemetryData.length === 0) return null;
     
     const max_altitude = Math.max(...telemetryData.map(d => Number(d.altitude) || 0));
     
-    let avg_speed = 15; // default since we don't have speed easily calculable without time parsing
-    
     // Estimate flight duration in minutes
     const startTime = new Date(telemetryData[0].timestamp).getTime();
     const endTime = new Date(telemetryData[telemetryData.length - 1].timestamp).getTime();
-    const flight_duration = Math.max(1, (endTime - startTime) / 60000);
+    const flight_duration = Math.max(0.1, (endTime - startTime) / 60000);
+    
+    // Calculate actual average speed using Haversine formula
+    let totalDistanceMeters = 0;
+    for (let i = 1; i < telemetryData.length; i++) {
+        const prev = telemetryData[i - 1];
+        const curr = telemetryData[i];
+        if (prev.latitude && prev.longitude && curr.latitude && curr.longitude) {
+            totalDistanceMeters += calculateDistance(
+                Number(prev.latitude), Number(prev.longitude),
+                Number(curr.latitude), Number(curr.longitude)
+            );
+        }
+    }
+    
+    const flight_duration_seconds = flight_duration * 60;
+    const avg_speed = totalDistanceMeters / flight_duration_seconds;
     
     const start_battery = telemetryData[0].battery || 100;
     const end_battery = telemetryData[telemetryData.length - 1].battery || 0;
