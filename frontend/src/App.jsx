@@ -3,7 +3,7 @@ import Sidebar from './components/Sidebar';
 import Map from './components/Map';
 import ReportViewer from './components/ReportViewer';
 import TelemetryChart from './components/TelemetryChart';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import ReportModal from './components/ReportModal';
