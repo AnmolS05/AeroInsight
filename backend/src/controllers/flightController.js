@@ -113,6 +113,59 @@ exports.getFlightReport = async (req, res, next) => {
     }
 };
 
+exports.regenerateFlightReport = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        
+        // 1. Fetch telemetry data
+        const telemetryResult = await db.query('SELECT * FROM telemetry WHERE flight_id = $1 ORDER BY timestamp ASC', [id]);
+        if (telemetryResult.rows.length === 0) {
+            const err = new Error('Flight telemetry not found');
+            err.statusCode = 404;
+            return next(err);
+        }
+        const telemetryData = telemetryResult.rows;
+
+        // 2. Trigger AI Analysis
+        const prompt = `
+You are an expert drone telemetry analyst. Analyze the following drone flight JSON data:
+${JSON.stringify(telemetryData)}
+
+Identify:
+1. Total flight duration estimate.
+2. Specific GPS coordinates where issues (like cracks, battery drops, structural anomalies) were flagged.
+3. A professional assessment and recommended maintenance steps.
+
+Provide the output strictly in clean Markdown format with headers.
+`;
+
+        let reportText = '';
+        try {
+            const response = await ai.models.generateContent({
+                model: 'gemini-3.6-flash',
+                contents: prompt,
+            });
+            reportText = response.text;
+        } catch (aiError) {
+            console.error('Gemini API Error during regeneration:', aiError);
+            reportText = `### AI Analysis Unavailable\n\nThe Gemini AI failed to process this log. Please check your API key.\n\n**Raw Data Summary:**\n- **Total Data Points:** ${telemetryData.length}`;
+        }
+        
+        // Append ML Risk Score
+        const mlAnalysis = mlService.analyzeFlightRisk(telemetryData);
+        if (mlAnalysis) {
+            reportText += `\n\n### 🤖 ML Flight Risk Assessment\n- **Predicted Risk:** ${mlAnalysis.riskScore === 'High Risk' ? '**🔴 High Risk**' : '**🟢 Low Risk**'}\n- **Telemetry Factors:**\n  - Max Altitude: ${mlAnalysis.features.max_altitude.toFixed(1)}m\n  - Battery Drain: ${mlAnalysis.features.battery_drain.toFixed(1)}%\n  - Est. Duration: ${mlAnalysis.features.flight_duration.toFixed(1)} min\n`;
+        }
+
+        // 3. Update AI Report in Database
+        await db.query('UPDATE reports SET report_text = $1 WHERE flight_id = $2', [reportText, id]);
+
+        res.json({ report: reportText });
+    } catch (err) {
+        next(err);
+    }
+};
+
 exports.deleteFlight = async (req, res, next) => {
     try {
         const { id } = req.params;

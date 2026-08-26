@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, RefreshCw } from 'lucide-react';
 import ReportViewer from './ReportViewer';
 
-function ReportModal({ isOpen, onClose, reportText }) {
+function ReportModal({ isOpen, onClose, reportText, onRefresh, isRegenerating }) {
   if (!isOpen) return null;
 
   return (
@@ -26,19 +26,35 @@ function ReportModal({ isOpen, onClose, reportText }) {
             <span className="w-3 h-3 rounded-full bg-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)] animate-pulse"></span>
             Gemini Analysis Report
           </h2>
-          <button 
-            onClick={onClose}
-            className="p-3 text-slate-400 hover:text-white bg-purple-500/10 hover:bg-purple-500/30 border border-purple-500/20 rounded-xl transition-all duration-300"
-          >
-            <X size={20} className="stroke-[2.5]" />
-          </button>
+          <div className="flex items-center gap-3">
+            {onRefresh && (
+              <button 
+                onClick={onRefresh}
+                disabled={isRegenerating}
+                className="p-3 text-slate-400 hover:text-white bg-purple-500/10 hover:bg-purple-500/30 border border-purple-500/20 rounded-xl transition-all duration-300 disabled:opacity-50"
+                title="Regenerate Report"
+              >
+                <RefreshCw size={20} className={`stroke-[2.5] ${isRegenerating ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+            <button 
+              onClick={onClose}
+              className="p-3 text-slate-400 hover:text-white bg-purple-500/10 hover:bg-purple-500/30 border border-purple-500/20 rounded-xl transition-all duration-300"
+            >
+              <X size={20} className="stroke-[2.5]" />
+            </button>
+          </div>
         </div>
         <div className="p-8 overflow-y-auto flex-1 custom-scrollbar relative z-10">
-          {reportText ? (
+          {isRegenerating ? (
+            <div className="flex items-center justify-center h-40 text-purple-400/50 font-black tracking-widest uppercase text-sm animate-pulse">
+              <p>Generating New Intelligence...</p>
+            </div>
+          ) : reportText ? (
             <ReportViewer markdown={reportText} />
           ) : (
             <div className="flex items-center justify-center h-40 text-purple-400/50 font-black tracking-widest uppercase text-sm animate-pulse">
-              <p>Generating AI Intelligence...</p>
+              <p>Loading Intelligence...</p>
             </div>
           )}
         </div>

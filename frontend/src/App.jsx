@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import ReportModal from './components/ReportModal';
-import { Maximize2, X } from 'lucide-react';
+import { Maximize2, X, RefreshCw } from 'lucide-react';
 
 function App() {
   const [flights, setFlights] = useState([]);
@@ -16,6 +16,7 @@ function App() {
   const [reportText, setReportText] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isReportFullscreen, setIsReportFullscreen] = useState(false);
+  const [isRegeneratingReport, setIsRegeneratingReport] = useState(false);
 
   const API_BASE_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:10000');
 
@@ -66,6 +67,26 @@ function App() {
       toast.error('Failed to load flight details.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRefreshReport = async () => {
+    if (!selectedFlightId) return;
+    setIsRegeneratingReport(true);
+    const loadingToast = toast.loading('Regenerating AI Analysis...');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/flights/${selectedFlightId}/report/refresh`, {
+        method: 'POST'
+      });
+      if (!res.ok) throw new Error('API Error');
+      const data = await res.json();
+      setReportText(data.report);
+      toast.success('AI Analysis Regenerated!', { id: loadingToast });
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to regenerate report.', { id: loadingToast });
+    } finally {
+      setIsRegeneratingReport(false);
     }
   };
 
@@ -231,20 +252,34 @@ function App() {
                       <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.8)] animate-pulse"></span>
                       AI Analysis Report
                     </h2>
-                    <button 
-                      onClick={() => setIsReportFullscreen(true)}
-                      className="text-slate-400 hover:text-white transition-colors p-2 bg-purple-500/10 rounded-xl border border-purple-500/20 hover:bg-purple-500/30"
-                      title="View Fullscreen"
-                    >
-                      <Maximize2 size={18} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={handleRefreshReport}
+                        disabled={isRegeneratingReport}
+                        className="text-slate-400 hover:text-white transition-colors p-2 bg-purple-500/10 rounded-xl border border-purple-500/20 hover:bg-purple-500/30 disabled:opacity-50"
+                        title="Regenerate Report"
+                      >
+                        <RefreshCw size={18} className={isRegeneratingReport ? 'animate-spin' : ''} />
+                      </button>
+                      <button 
+                        onClick={() => setIsReportFullscreen(true)}
+                        className="text-slate-400 hover:text-white transition-colors p-2 bg-purple-500/10 rounded-xl border border-purple-500/20 hover:bg-purple-500/30"
+                        title="View Fullscreen"
+                      >
+                        <Maximize2 size={18} />
+                      </button>
+                    </div>
                   </div>
                   <div className="flex-1 overflow-y-auto pr-3 custom-scrollbar relative z-10">
-                    {reportText ? (
+                    {isRegeneratingReport ? (
+                      <div className="h-full flex items-center justify-center text-purple-400/50 font-black tracking-widest uppercase text-xs animate-pulse">
+                        <p>Generating New Intelligence...</p>
+                      </div>
+                    ) : reportText ? (
                       <ReportViewer markdown={reportText} />
                     ) : (
                       <div className="h-full flex items-center justify-center text-purple-400/50 font-black tracking-widest uppercase text-xs animate-pulse">
-                        <p>Generating AI Intelligence...</p>
+                        <p>Loading Intelligence...</p>
                       </div>
                     )}
                   </div>
@@ -296,6 +331,8 @@ function App() {
             isOpen={isReportFullscreen} 
             onClose={() => setIsReportFullscreen(false)} 
             reportText={reportText} 
+            onRefresh={handleRefreshReport}
+            isRegenerating={isRegeneratingReport}
           />
         )}
       </AnimatePresence>
