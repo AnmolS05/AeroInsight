@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import ReportModal from './components/ReportModal';
+import MapModal from './components/MapModal';
 import { Maximize2, X, RefreshCw } from 'lucide-react';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
   const [reportText, setReportText] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isReportFullscreen, setIsReportFullscreen] = useState(false);
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [isRegeneratingReport, setIsRegeneratingReport] = useState(false);
 
   const API_BASE_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:10000');
@@ -229,13 +231,23 @@ function App() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5, delay: 0.1 }}
-                  className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-indigo-500/20 p-3 overflow-hidden flex flex-col h-full group hover:border-indigo-500/40 transition-all duration-500"
+                  className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-indigo-500/20 p-6 overflow-hidden flex flex-col h-full group hover:border-indigo-500/40 transition-all duration-500 relative"
                 >
-                  <h2 className="text-sm font-black text-white px-4 pt-3 pb-4 flex items-center gap-3 tracking-widest uppercase drop-shadow-md">
-                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]"></span>
-                    Flight Path Map
-                  </h2>
-                  <div className="flex-1 rounded-[1.5rem] overflow-hidden border border-indigo-500/10 bg-[#0a0f1c] relative">
+                  <div className="absolute top-0 left-0 w-64 h-64 bg-indigo-500/10 blur-[60px] rounded-full pointer-events-none group-hover:scale-125 transition-transform duration-1000" />
+                  <div className="flex items-center justify-between pb-4 border-b border-indigo-500/20 mb-4 relative z-10">
+                    <h2 className="text-sm font-black text-white flex items-center gap-3 tracking-widest uppercase drop-shadow-md">
+                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]"></span>
+                      Flight Path Map
+                    </h2>
+                    <button 
+                      onClick={() => setIsMapFullscreen(true)}
+                      className="text-slate-400 hover:text-white transition-colors p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20 hover:bg-indigo-500/30"
+                      title="View Fullscreen"
+                    >
+                      <Maximize2 size={18} />
+                    </button>
+                  </div>
+                  <div className="flex-1 rounded-[1.5rem] overflow-hidden border border-indigo-500/10 bg-[#0a0f1c] relative z-10">
                     <Map telemetryData={flightData} />
                   </div>
                 </motion.section>
@@ -333,6 +345,17 @@ function App() {
             reportText={reportText} 
             onRefresh={handleRefreshReport}
             isRegenerating={isRegeneratingReport}
+          />
+        )}
+      </AnimatePresence>
+      
+      {/* Fullscreen Map Modal */}
+      <AnimatePresence>
+        {isMapFullscreen && (
+          <MapModal 
+            isOpen={isMapFullscreen} 
+            onClose={() => setIsMapFullscreen(false)} 
+            telemetryData={flightData} 
           />
         )}
       </AnimatePresence>
