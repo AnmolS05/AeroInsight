@@ -7,7 +7,12 @@ function ReportModal({ isOpen, onClose, reportText }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-[#0a0f1c]/90 backdrop-blur-xl flex items-center justify-center p-4 sm:p-8">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[9999] bg-[#0a0f1c]/90 backdrop-blur-xl flex items-center justify-center p-4 sm:p-8"
+    >
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -38,7 +43,7 @@ function ReportModal({ isOpen, onClose, reportText }) {
           )}
         </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }
 
