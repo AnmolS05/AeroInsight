@@ -4,7 +4,7 @@ import Map from './components/Map';
 import ReportViewer from './components/ReportViewer';
 import TelemetryChart from './components/TelemetryChart';
 import { motion, AnimatePresence } from 'framer-motion';
-import toast from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import ReportModal from './components/ReportModal';
 import { Maximize2, X } from 'lucide-react';
@@ -97,6 +97,28 @@ function App() {
 
   return (
     <div className="flex h-screen w-full bg-[#0a0f1c] overflow-hidden text-slate-200">
+      <Toaster 
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: 'rgba(11, 17, 32, 0.9)',
+            backdropFilter: 'blur(16px)',
+            color: '#fff',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
+            borderRadius: '1rem',
+            padding: '16px',
+            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.3)'
+          },
+          success: {
+            iconTheme: { primary: '#10b981', secondary: '#fff' },
+            style: { border: '1px solid rgba(16, 185, 129, 0.3)' }
+          },
+          error: {
+            iconTheme: { primary: '#ef4444', secondary: '#fff' },
+            style: { border: '1px solid rgba(239, 68, 68, 0.3)' }
+          }
+        }} 
+      />
       <Sidebar 
         flights={flights} 
         onSelect={handleFlightSelect} 
