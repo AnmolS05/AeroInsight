@@ -7,11 +7,13 @@ const mlService = require('../services/mlService');
 // Pass the API key explicitly for Vercel Serverless compatibility
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-exports.uploadFlight = async (req, res) => {
+exports.uploadFlight = async (req, res, next) => {
     try {
         const telemetryData = req.body;
         if (!Array.isArray(telemetryData) || telemetryData.length === 0) {
-            return res.status(400).json({ error: 'Invalid telemetry data' });
+            const err = new Error('Invalid telemetry data');
+            err.statusCode = 400;
+            return next(err);
         }
 
         const flightId = crypto.randomUUID();
@@ -63,47 +65,45 @@ Provide the output strictly in clean Markdown format with headers.
 
         res.status(201).json({ message: 'Flight uploaded and analyzed successfully', flightId });
     } catch (error) {
-        console.error('Error processing flight:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        next(error);
     }
 };
 
-exports.getFlights = async (req, res) => {
+exports.getFlights = async (req, res, next) => {
     try {
         const result = await db.query('SELECT * FROM flights ORDER BY created_at DESC');
         res.json(result.rows);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Database error' });
+        next(err);
     }
 };
 
-exports.getFlightData = async (req, res) => {
+exports.getFlightData = async (req, res, next) => {
     try {
         const { id } = req.params;
         const result = await db.query('SELECT * FROM telemetry WHERE flight_id = $1 ORDER BY timestamp ASC', [id]);
         res.json(result.rows);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Database error' });
+        next(err);
     }
 };
 
-exports.getFlightReport = async (req, res) => {
+exports.getFlightReport = async (req, res, next) => {
     try {
         const { id } = req.params;
         const result = await db.query('SELECT report_text FROM reports WHERE flight_id = $1', [id]);
         if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Report not found' });
+            const err = new Error('Report not found');
+            err.statusCode = 404;
+            return next(err);
         }
         res.json({ report: result.rows[0].report_text });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Database error' });
+        next(err);
     }
 };
 
-exports.deleteFlight = async (req, res) => {
+exports.deleteFlight = async (req, res, next) => {
     try {
         const { id } = req.params;
         await db.query('DELETE FROM telemetry WHERE flight_id = $1', [id]);
@@ -111,11 +111,12 @@ exports.deleteFlight = async (req, res) => {
         const result = await db.query('DELETE FROM flights WHERE id = $1', [id]);
         
         if (result.rowCount === 0) {
-            return res.status(404).json({ error: 'Flight not found' });
+            const err = new Error('Flight not found');
+            err.statusCode = 404;
+            return next(err);
         }
         res.json({ message: 'Flight deleted successfully' });
     } catch (err) {
-        console.error('Error deleting flight:', err);
-        res.status(500).json({ error: 'Database error' });
+        next(err);
     }
 };

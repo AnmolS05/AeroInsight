@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const flightRoutes = require('./routes/flightRoutes');
+const errorHandler = require('./middlewares/errorHandler');
 require('./config/database'); // Initialize DB
 
 const app = express();
@@ -15,6 +16,9 @@ app.use('/api/flights', flightRoutes);
 app.get('/', (req, res) => {
     res.send('AeroInsight Backend API is running.');
 });
+
+// Global Error Handler
+app.use(errorHandler);
 
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
