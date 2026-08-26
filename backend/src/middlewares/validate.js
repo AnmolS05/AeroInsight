@@ -24,3 +24,19 @@ exports.validateTelemetry = (req, res, next) => {
     next(error);
   }
 };
+
+const flightIdSchema = z.string().uuid("Invalid Flight ID format");
+
+exports.validateFlightId = (req, res, next) => {
+  try {
+    req.params.id = flightIdSchema.parse(req.params.id);
+    next();
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      error.statusCode = 400;
+      error.message = 'Validation failed: ' + error.errors.map(e => e.message).join(', ');
+      return next(error);
+    }
+    next(error);
+  }
+};
