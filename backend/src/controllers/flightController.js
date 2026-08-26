@@ -8,6 +8,7 @@ const mlService = require('../services/mlService');
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 exports.uploadFlight = async (req, res, next) => {
+    const client = await db.connect();
     try {
         const telemetryData = req.body;
         if (!Array.isArray(telemetryData) || telemetryData.length === 0) {
@@ -18,12 +19,15 @@ exports.uploadFlight = async (req, res, next) => {
 
         const flightId = crypto.randomUUID();
 
+        // Start ACID Transaction
+        await client.query('BEGIN');
+
         // 1. Insert Flight Record
-        await db.query('INSERT INTO flights (id) VALUES ($1)', [flightId]);
+        await client.query('INSERT INTO flights (id) VALUES ($1)', [flightId]);
 
         // 2. Insert Telemetry points
         for (const point of telemetryData) {
-            await db.query(
+            await client.query(
                 'INSERT INTO telemetry (flight_id, latitude, longitude, altitude, battery, issue, timestamp) VALUES ($1, $2, $3, $4, $5, $6, $7)',
                 [flightId, point.latitude, point.longitude, point.altitude, point.battery, point.issue || 'none', point.timestamp]
             );
@@ -61,11 +65,17 @@ Provide the output strictly in clean Markdown format with headers.
         }
 
         // 4. Save AI Report
-        await db.query('INSERT INTO reports (flight_id, report_text) VALUES ($1, $2)', [flightId, reportText]);
+        await client.query('INSERT INTO reports (flight_id, report_text) VALUES ($1, $2)', [flightId, reportText]);
+
+        // Commit transaction
+        await client.query('COMMIT');
 
         res.status(201).json({ message: 'Flight uploaded and analyzed successfully', flightId });
     } catch (error) {
+        await client.query('ROLLBACK');
         next(error);
+    } finally {
+        client.release();
     }
 };
 
