@@ -17,7 +17,9 @@ exports.validateTelemetry = (req, res, next) => {
     next();
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Validation failed', details: error.errors });
+      error.statusCode = 400;
+      error.message = 'Validation failed: ' + error.errors.map(e => e.message).join(', ');
+      return next(error);
     }
     next(error);
   }
