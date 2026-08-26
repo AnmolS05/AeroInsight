@@ -25,13 +25,14 @@
 * **Deterministic ML Scoring (Custom Random Forest):** A proprietary, offline machine learning model that analyzes raw telemetry metrics (battery drain curves, duration, altitude volatility) to output a deterministic risk classification (High/Low Risk).
 
 ### 2. Deep Dark UI / UX 🎨
-* **Glassmorphic Design System:** Built with Tailwind CSS, utilizing `backdrop-blur`, semi-transparent indigo overlays, and dynamic micro-animations.
-* **Geospatial Mapping:** Interactive flight path visualization via Leaflet.js with custom glowing markers.
-* **Real-time Telemetry Analytics:** High-performance charting via Recharts.
+* **Glassmorphic Design System:** Built with Tailwind CSS, utilizing `backdrop-blur`, semi-transparent indigo overlays, custom Webkit scrollbars, and dynamic micro-animations.
+* **Geospatial Mapping:** Interactive flight path visualization via Leaflet.js with CartoDB Dark Matter tiles and custom glowing markers.
+* **Real-time Telemetry Analytics:** High-performance charting via Recharts utilizing SVG AreaChart gradients.
 
 ### 3. Clean Backend Architecture 🏗️
 * **Express Pipeline:** Structured with strict MVC patterns (Controllers, Services, Routes).
-* **Global Error Handling:** Standardized error responses through centralized middleware, avoiding fragile try-catch nesting.
+* **Global Error Handling:** Standardized error responses through centralized middleware (including Zod validation), avoiding fragile try-catch nesting.
+* **Observability:** HTTP request logging integrated via `morgan` for robust debugging.
 * **SQLite/PostgreSQL Storage:** Reliable relational storage for flight metadata and AI reports.
 
 ---
@@ -51,12 +52,12 @@ AeroInsight/
 │   └── package.json
 ├── frontend/              # React frontend (Vite)
 │   ├── src/
-│   │   ├── components/    # Reusable UI components (Sidebar, Map, TelemetryChart)
+│   │   ├── components/    # Reusable UI components (Sidebar, Map, TelemetryChart, ReportModal)
 │   │   ├── index.css      # Tailwind configuration & Deep Dark theme overrides
 │   │   └── App.jsx        # Main layout and state management
 │   └── package.json
 ├── ml/                    # Data science & ML training pipelines (Python)
-│   └── synthetic_data.py  # Model generation scripts
+│   └── train_risk_model.py # Model generation and synthetic dataset script
 └── docker-compose.yml     # Container orchestration
 ```
 
