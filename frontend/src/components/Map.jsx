@@ -91,13 +91,13 @@ export default function Map({ telemetryData }) {
 
   return (
     <div className="relative w-full h-full">
-      <div className="absolute top-4 right-4 z-[400] bg-white rounded-lg shadow-md p-2 flex gap-2">
+      <div className="absolute top-4 right-4 z-[400] bg-[#0a0f1c]/80 backdrop-blur-md rounded-[1rem] shadow-[0_0_20px_rgba(99,102,241,0.2)] border border-indigo-500/20 p-2 flex gap-2">
         <button 
           onClick={() => setIsPlaying(!isPlaying)}
-          className="p-2 bg-brand-50 hover:bg-brand-100 text-brand-600 rounded-md transition-colors"
+          className="p-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-xl transition-all hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] border border-transparent hover:border-indigo-500/30"
           title={isPlaying ? "Pause" : "Play Flight"}
         >
-          {isPlaying ? <Square size={18} /> : <Play size={18} />}
+          {isPlaying ? <Square size={18} className="fill-indigo-400" /> : <Play size={18} className="fill-indigo-400 ml-0.5" />}
         </button>
       </div>
       <MapContainer 
@@ -108,11 +108,11 @@ export default function Map({ telemetryData }) {
       >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
       />
       <Polyline 
         positions={positions} 
-        color="#cbd5e1" 
+        color="#1e293b" 
         weight={4} 
         opacity={0.5}
         lineCap="round"
@@ -121,7 +121,7 @@ export default function Map({ telemetryData }) {
       />
       <Polyline 
         positions={currentPath} 
-        color="#3b82f6" 
+        color="#6366f1" 
         weight={4} 
         opacity={0.8}
         lineCap="round"
@@ -132,7 +132,7 @@ export default function Map({ telemetryData }) {
         <CircleMarker 
           center={currentPoint}
           radius={6}
-          pathOptions={{ color: '#1e40af', fillColor: '#3b82f6', fillOpacity: 1 }}
+          pathOptions={{ color: '#818cf8', fillColor: '#6366f1', fillOpacity: 1 }}
         />
       )}
 
@@ -143,16 +143,16 @@ export default function Map({ telemetryData }) {
           position={[point.latitude, point.longitude]}
           icon={issueIcon}
         >
-          <Popup className="rounded-lg shadow-lg">
-            <div className="p-1">
-              <h4 className="font-bold text-red-600 flex items-center gap-1.5 text-sm mb-1">
+          <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+            <div className="p-2">
+              <h4 className="font-black text-rose-500 flex items-center gap-2 text-xs mb-2 uppercase tracking-widest drop-shadow-md">
                 <AlertTriangle size={14} /> Anomaly Detected
               </h4>
-              <p className="text-slate-700 text-sm mb-2">{point.issue}</p>
-              <div className="bg-slate-50 p-2 rounded text-xs text-slate-500 font-mono">
-                <div>Alt: {point.altitude}m</div>
-                <div>Batt: {point.battery}%</div>
-                <div>Time: {new Date(point.timestamp).toLocaleTimeString()}</div>
+              <p className="text-slate-200 text-sm mb-3 font-medium">{point.issue}</p>
+              <div className="bg-[#0a0f1c] p-3 rounded-xl border border-rose-500/20 text-xs text-slate-400 font-mono flex flex-col gap-1">
+                <div><span className="text-slate-500">ALT:</span> {point.altitude}m</div>
+                <div><span className="text-slate-500">BATT:</span> {point.battery}%</div>
+                <div><span className="text-slate-500">TIME:</span> {new Date(point.timestamp).toLocaleTimeString()}</div>
               </div>
             </div>
           </Popup>
