@@ -50,6 +50,10 @@ export const parseFlightLog = (file) => {
           jsonData = JSON.parse(fileContent);
         }
         
+        if (!Array.isArray(jsonData) || jsonData.length === 0) {
+          throw new Error('Invalid data format: Expected a non-empty array of telemetry objects.');
+        }
+
         resolve(jsonData);
       } catch (err) {
         reject(err);
