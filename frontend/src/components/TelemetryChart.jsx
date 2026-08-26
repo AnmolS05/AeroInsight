@@ -1,7 +1,7 @@
 import React from 'react';
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -23,7 +23,17 @@ export default function TelemetryChart({ data }) {
   return (
     <div className="w-full h-full min-h-[250px]">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+        <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="colorAltitude" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#6366f1" stopOpacity={0.5}/>
+              <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+            </linearGradient>
+            <linearGradient id="colorBattery" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#10b981" stopOpacity={0.5}/>
+              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
           <XAxis 
             dataKey="time" 
@@ -49,25 +59,27 @@ export default function TelemetryChart({ data }) {
             itemStyle={{ color: '#fff', fontWeight: 900, fontFamily: 'monospace' }}
           />
           <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }} />
-          <Line 
+          <Area 
             yAxisId="left"
             type="monotone" 
             dataKey="Altitude" 
-            stroke="#6366f1" 
+            stroke="#6366f1"
+            fillOpacity={1}
+            fill="url(#colorAltitude)"
             strokeWidth={4} 
-            dot={false}
             activeDot={{ r: 6, fill: '#6366f1', strokeWidth: 0, shadow: '0 0 10px rgba(99,102,241,0.8)' }} 
           />
-          <Line 
+          <Area 
             yAxisId="right"
             type="monotone" 
             dataKey="Battery" 
-            stroke="#10b981" 
+            stroke="#10b981"
+            fillOpacity={1}
+            fill="url(#colorBattery)"
             strokeWidth={4} 
-            dot={false} 
             activeDot={{ r: 6, fill: '#10b981', strokeWidth: 0, shadow: '0 0 10px rgba(16,185,129,0.8)' }}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
