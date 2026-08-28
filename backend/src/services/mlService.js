@@ -4,10 +4,7 @@ const path = require('path');
 let modelData = null;
 
 try {
-    const modelPath = path.join(__dirname, '../ml_models/risk_model.json');
-    if (fs.existsSync(modelPath)) {
-        modelData = JSON.parse(fs.readFileSync(modelPath, 'utf8'));
-    }
+    modelData = require('../ml_models/risk_model.json');
 } catch (e) {
     console.error("Could not load ML model:", e);
 }
