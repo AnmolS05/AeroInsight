@@ -36,14 +36,14 @@ const issueIcon = createIssueIcon();
 // Component to dynamically adjust map bounds
 function MapBounds({ positions }) {
   const map = useMap();
-  
+
   React.useEffect(() => {
     if (positions && positions.length > 0) {
       const bounds = L.latLngBounds(positions);
       map.fitBounds(bounds, { padding: [50, 50] });
     }
   }, [map, positions]);
-  
+
   return null;
 }
 
@@ -92,7 +92,7 @@ export default function Map({ telemetryData }) {
   return (
     <div className="relative w-full h-full">
       <div className="absolute top-4 right-4 z-[400] bg-[#0a0f1c]/80 backdrop-blur-md rounded-[1rem] shadow-[0_0_20px_rgba(99,102,241,0.2)] border border-indigo-500/20 p-2 flex gap-2">
-        <button 
+        <button
           onClick={() => setIsPlaying(!isPlaying)}
           className="p-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-xl transition-all hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] border border-transparent hover:border-indigo-500/30"
           title={isPlaying ? "Pause" : "Play Flight"}
@@ -100,102 +100,102 @@ export default function Map({ telemetryData }) {
           {isPlaying ? <Square size={18} className="fill-indigo-400" /> : <Play size={18} className="fill-indigo-400 ml-0.5" />}
         </button>
       </div>
-      <MapContainer 
-        center={center} 
-        zoom={13} 
+      <MapContainer
+        center={center}
+        zoom={13}
         scrollWheelZoom={true}
         zoomControl={false}
         className="w-full h-full z-0"
       >
-      <ZoomControl position="bottomright" />
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url={`https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${import.meta.env.VITE_CARTO_API_KEY}`}
-      />
-      <Polyline 
-        positions={positions} 
-        color="#1e293b" 
-        weight={4} 
-        opacity={0.5}
-        lineCap="round"
-        lineJoin="round"
-        dashArray="1, 8"
-      />
-      <Polyline 
-        positions={currentPath} 
-        color="#6366f1" 
-        weight={4} 
-        opacity={0.8}
-        lineCap="round"
-        lineJoin="round"
-      />
-      
-      {/* Start Marker */}
-      {positions.length > 0 && (
-        <CircleMarker 
-          center={positions[0]}
-          radius={5}
-          pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 1, weight: 2 }}
-        >
-          <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(16,185,129,0.2)]">
-            <div className="p-2">
-              <h4 className="font-black text-emerald-500 text-xs mb-1 uppercase tracking-widest">Takeoff Location</h4>
-              <p className="text-slate-200 text-xs font-mono">{positions[0][0].toFixed(5)}, {positions[0][1].toFixed(5)}</p>
-            </div>
-          </Popup>
-        </CircleMarker>
-      )}
-
-      {/* End Marker */}
-      {positions.length > 1 && (
-        <CircleMarker 
-          center={positions[positions.length - 1]}
-          radius={5}
-          pathOptions={{ color: '#6366f1', fillColor: '#0a0f1c', fillOpacity: 1, weight: 3 }}
-        >
-          <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-            <div className="p-2">
-              <h4 className="font-black text-indigo-500 text-xs mb-1 uppercase tracking-widest">Landing Location</h4>
-              <p className="text-slate-200 text-xs font-mono">{positions[positions.length - 1][0].toFixed(5)}, {positions[positions.length - 1][1].toFixed(5)}</p>
-            </div>
-          </Popup>
-        </CircleMarker>
-      )}
-
-      {/* Current Position Marker (Playback) */}
-      {currentPoint && (
-        <CircleMarker 
-          center={currentPoint}
-          radius={6}
-          pathOptions={{ color: '#818cf8', fillColor: '#6366f1', fillOpacity: 1 }}
+        <ZoomControl position="bottomright" />
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url={`https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${import.meta.env.VITE_CARTO_API_KEY}`}
         />
-      )}
+        <Polyline
+          positions={positions}
+          color="#1e293b"
+          weight={4}
+          opacity={0.5}
+          lineCap="round"
+          lineJoin="round"
+          dashArray="1, 8"
+        />
+        <Polyline
+          positions={currentPath}
+          color="#6366f1"
+          weight={4}
+          opacity={0.8}
+          lineCap="round"
+          lineJoin="round"
+        />
 
-      {/* Render Issue Markers */}
-      {issues.map((point, idx) => (
-        <Marker 
-          key={`issue-${idx}`} 
-          position={[point.latitude, point.longitude]}
-          icon={issueIcon}
-        >
-          <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(239,68,68,0.2)]">
-            <div className="p-2">
-              <h4 className="font-black text-rose-500 flex items-center gap-2 text-xs mb-2 uppercase tracking-widest drop-shadow-md">
-                <AlertTriangle size={14} /> Anomaly Detected
-              </h4>
-              <p className="text-slate-200 text-sm mb-3 font-medium">{point.issue}</p>
-              <div className="bg-[#0a0f1c] p-3 rounded-xl border border-rose-500/20 text-xs text-slate-400 font-mono flex flex-col gap-1">
-                <div><span className="text-slate-500">ALT:</span> {point.altitude}m</div>
-                <div><span className="text-slate-500">BATT:</span> {point.battery}%</div>
-                <div><span className="text-slate-500">TIME:</span> {new Date(point.timestamp).toLocaleTimeString()}</div>
+        {/* Start Marker */}
+        {positions.length > 0 && (
+          <CircleMarker
+            center={positions[0]}
+            radius={5}
+            pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 1, weight: 2 }}
+          >
+            <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+              <div className="p-2">
+                <h4 className="font-black text-emerald-500 text-xs mb-1 uppercase tracking-widest">Takeoff Location</h4>
+                <p className="text-slate-200 text-xs font-mono">{positions[0][0].toFixed(5)}, {positions[0][1].toFixed(5)}</p>
               </div>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
+            </Popup>
+          </CircleMarker>
+        )}
 
-      <MapBounds positions={positions} />
-    </MapContainer>
+        {/* End Marker */}
+        {positions.length > 1 && (
+          <CircleMarker
+            center={positions[positions.length - 1]}
+            radius={5}
+            pathOptions={{ color: '#6366f1', fillColor: '#0a0f1c', fillOpacity: 1, weight: 3 }}
+          >
+            <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+              <div className="p-2">
+                <h4 className="font-black text-indigo-500 text-xs mb-1 uppercase tracking-widest">Landing Location</h4>
+                <p className="text-slate-200 text-xs font-mono">{positions[positions.length - 1][0].toFixed(5)}, {positions[positions.length - 1][1].toFixed(5)}</p>
+              </div>
+            </Popup>
+          </CircleMarker>
+        )}
+
+        {/* Current Position Marker (Playback) */}
+        {currentPoint && (
+          <CircleMarker
+            center={currentPoint}
+            radius={6}
+            pathOptions={{ color: '#818cf8', fillColor: '#6366f1', fillOpacity: 1 }}
+          />
+        )}
+
+        {/* Render Issue Markers */}
+        {issues.map((point, idx) => (
+          <Marker
+            key={`issue-${idx}`}
+            position={[point.latitude, point.longitude]}
+            icon={issueIcon}
+          >
+            <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+              <div className="p-2">
+                <h4 className="font-black text-rose-500 flex items-center gap-2 text-xs mb-2 uppercase tracking-widest drop-shadow-md">
+                  <AlertTriangle size={14} /> Anomaly Detected
+                </h4>
+                <p className="text-slate-200 text-sm mb-3 font-medium">{point.issue}</p>
+                <div className="bg-[#0a0f1c] p-3 rounded-xl border border-rose-500/20 text-xs text-slate-400 font-mono flex flex-col gap-1">
+                  <div><span className="text-slate-500">ALT:</span> {point.altitude}m</div>
+                  <div><span className="text-slate-500">BATT:</span> {point.battery}%</div>
+                  <div><span className="text-slate-500">TIME:</span> {new Date(point.timestamp).toLocaleTimeString()}</div>
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+        <MapBounds positions={positions} />
+      </MapContainer>
     </div>
   );
 }
