@@ -130,7 +130,40 @@ export default function Map({ telemetryData }) {
         lineJoin="round"
       />
       
-      {currentPoint && (
+      {/* Start Marker */}
+      {positions.length > 0 && (
+        <CircleMarker 
+          center={positions[0]}
+          radius={5}
+          pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 1, weight: 2 }}
+        >
+          <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+            <div className="p-2">
+              <h4 className="font-black text-emerald-500 text-xs mb-1 uppercase tracking-widest">Takeoff Location</h4>
+              <p className="text-slate-200 text-xs font-mono">{positions[0][0].toFixed(5)}, {positions[0][1].toFixed(5)}</p>
+            </div>
+          </Popup>
+        </CircleMarker>
+      )}
+
+      {/* End Marker */}
+      {positions.length > 1 && (
+        <CircleMarker 
+          center={positions[positions.length - 1]}
+          radius={5}
+          pathOptions={{ color: '#6366f1', fillColor: '#0a0f1c', fillOpacity: 1, weight: 3 }}
+        >
+          <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+            <div className="p-2">
+              <h4 className="font-black text-indigo-500 text-xs mb-1 uppercase tracking-widest">Landing Location</h4>
+              <p className="text-slate-200 text-xs font-mono">{positions[positions.length - 1][0].toFixed(5)}, {positions[positions.length - 1][1].toFixed(5)}</p>
+            </div>
+          </Popup>
+        </CircleMarker>
+      )}
+
+      {/* Current Position Marker (Playback) */}
+      {currentPoint && isPlaying && (
         <CircleMarker 
           center={currentPoint}
           radius={6}

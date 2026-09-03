@@ -2,6 +2,19 @@ const db = require('../config/database');
 const { GoogleGenAI } = require('@google/genai');
 const crypto = require('crypto');
 const mlService = require('../services/mlService');
+const { z } = require('zod');
+
+// Schema to validate incoming telemetry data arrays
+const telemetrySchema = z.array(
+    z.object({
+        latitude: z.number(),
+        longitude: z.number(),
+        altitude: z.number(),
+        battery: z.number(),
+        issue: z.string().max(500).optional(),
+        timestamp: z.string()
+    })
+).max(100000); // Prevent ridiculously huge arrays from crashing memory
 
 // Initialize Gemini SDK
 // Pass the API key explicitly for Vercel Serverless compatibility
@@ -10,9 +23,16 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 exports.uploadFlight = async (req, res, next) => {
     const client = await db.connect();
     try {
-        const telemetryData = req.body;
-        if (!Array.isArray(telemetryData) || telemetryData.length === 0) {
-            const err = new Error('Invalid telemetry data');
+        const parsedBody = telemetrySchema.safeParse(req.body);
+        if (!parsedBody.success) {
+            const err = new Error('Invalid telemetry data: ' + JSON.stringify(parsedBody.error.errors));
+            err.statusCode = 400;
+            return next(err);
+        }
+        const telemetryData = parsedBody.data;
+
+        if (telemetryData.length === 0) {
+            const err = new Error('Telemetry data is empty');
             err.statusCode = 400;
             return next(err);
         }
@@ -25,13 +45,18 @@ exports.uploadFlight = async (req, res, next) => {
         // 1. Insert Flight Record
         await client.query('INSERT INTO flights (id) VALUES ($1)', [flightId]);
 
-        // 2. Insert Telemetry points
-        for (const point of telemetryData) {
-            await client.query(
-                'INSERT INTO telemetry (flight_id, latitude, longitude, altitude, battery, issue, timestamp) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-                [flightId, point.latitude, point.longitude, point.altitude, point.battery, point.issue || 'none', point.timestamp]
-            );
-        }
+        // 2. Insert Telemetry points via Bulk Insert (UNNEST) to prevent pool exhaustion and speed up insertion
+        const latitudes = telemetryData.map(p => p.latitude);
+        const longitudes = telemetryData.map(p => p.longitude);
+        const altitudes = telemetryData.map(p => p.altitude);
+        const batteries = telemetryData.map(p => p.battery);
+        const issues = telemetryData.map(p => p.issue || 'none');
+        const timestamps = telemetryData.map(p => p.timestamp);
+
+        await client.query(`
+            INSERT INTO telemetry (flight_id, latitude, longitude, altitude, battery, issue, timestamp)
+            SELECT $1, unnest($2::real[]), unnest($3::real[]), unnest($4::real[]), unnest($5::real[]), unnest($6::text[]), unnest($7::text[])
+        `, [flightId, latitudes, longitudes, altitudes, batteries, issues, timestamps]);
 
         // 3. Trigger AI Analysis
         const prompt = `

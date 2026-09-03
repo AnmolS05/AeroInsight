@@ -10,7 +10,7 @@ The user accesses the web interface, clicks "Upload Flight Log", and selects a J
 
 ### What does the system do?
 1. Parses the uploaded telemetry file.
-2. Saves the flight data and coordinates to a local SQLite database.
+2. Saves the flight data and coordinates to a PostgreSQL database.
 3. Passes key metrics to a custom Machine Learning model (Random Forest) for static risk scoring.
 4. Passes the flight path and data to the Google Gemini API to generate an intelligent anomaly report.
 5. Returns all this data to the frontend, which plots the path on an interactive Leaflet map.
@@ -18,32 +18,48 @@ The user accesses the web interface, clicks "Upload Flight Log", and selects a J
 ### What technologies participate?
 - **Frontend**: React, Vite, Tailwind CSS, Leaflet (Mapping), Framer Motion (Animations).
 - **Backend**: Node.js, Express.js.
-- **Database**: SQLite (previously PostgreSQL).
+- **Database**: PostgreSQL (previously SQLite).
 - **AI/ML**: Custom Python ML scripts (Random Forest) for risk scoring, Google Gemini API for generative anomaly detection.
 
 ### What data moves through the system?
-Drone telemetry data (Latitude, Longitude, Altitude, Battery level, Speed, Time) moves from the user's uploaded file → React Frontend → Express Backend → SQLite Database & ML/Gemini Services → React Frontend (rendered as a map and text report).
+Drone telemetry data (Latitude, Longitude, Altitude, Battery level, Speed, Time) moves from the user's uploaded file → React Frontend → Express Backend → PostgreSQL Database & ML/Gemini Services → React Frontend (rendered as a map and text report).
 
 ### AeroInsight Architecture Map
 
-```text
-User
- ↓
-Actual AeroInsight UI (React/Tailwind)
- ↓
-Actual frontend logic (Vite/Axios API calls)
- ↓
-Actual API/request (JSON payload of flight data)
- ↓
-Actual backend route (Express Router)
- ↓
-Actual business logic (Telemetry Parsing & Storage)
- ↓
-Actual database / AI / external API (SQLite / ML Inference / Gemini API)
- ↓
-Actual response (Risk Score, Gemini Analysis, Path Coordinates)
- ↓
-Actual UI update (Leaflet Map & Results Dashboard)
+To understand how data flows through AeroInsight, we need to trace a request from the moment the user interacts with the app to the moment they see the final result.
+
+* **Technical Operations:**
+  1. The User initiates a file upload via the React UI.
+  2. The frontend (Vite/Axios) parses the file and executes an HTTP request to the backend.
+  3. The request payload travels over the network to the Express Router.
+  4. The router passes the payload to the Controller, which manages business logic (parsing, validating).
+  5. The Controller interacts with external dependencies (PostgreSQL for storage, ML scripts for inference, Gemini API for generative analysis).
+  6. The Controller aggregates the responses and sends the HTTP response back to the client.
+  7. The React UI reconciles the state and updates the Leaflet Map and Dashboard.
+
+* **Simple (Real Life) Operations:**
+  1. **You** hand a raw recipe to the **Waiter** (React UI).
+  2. The Waiter runs to the **Kitchen Door** (Express Router) and shouts the order.
+  3. The **Head Chef** (Controller) takes the order and starts orchestrating the kitchen.
+  4. The Chef puts some ingredients in the **Pantry** (PostgreSQL database), asks the **Sous Chef** (ML Model) for a taste test, and calls a **Food Critic** (Gemini AI) for a review.
+  5. Once the meal is plated with the review attached, the Chef hands it back to the Waiter.
+  6. The Waiter serves the beautifully plated meal (Map and Dashboard) back to your table!
+
+#### Visual Architecture Diagram
+```mermaid
+graph TD
+    A[User] -->|Uploads Log| B(React / Tailwind UI)
+    B -->|Axios POST| C[JSON Payload]
+    C -->|Network Request| D(Express Router)
+    D -->|Routes to| E(Business Logic Controller)
+    E -->|Stores data| F[(PostgreSQL)]
+    E -->|Calculates| G[Local ML Model]
+    E -->|Analyzes| H((Gemini AI API))
+    F -.-> I[Aggregated Data]
+    G -.-> I
+    H -.-> I
+    I -->|HTTP 201 Response| J(React State Update)
+    J -->|Re-renders| K[Leaflet Map & Dashboard]
 ```
 
 ---
@@ -54,7 +70,7 @@ Actual UI update (Leaflet Map & Results Dashboard)
 | ----- | ----------------- | ------------ | -------------- | --------------- |
 | **Frontend** | React, Vite, Leaflet, Tailwind | `frontend/src/*` | Renders UI, handles uploads, plots maps | Fetches from backend via `http://localhost:10000` |
 | **Backend** | Node.js, Express | `backend/src/*` | API endpoints, orchestrates DB & AI calls | Receives frontend uploads, queries DB/Gemini |
-| **Database** | SQLite | `backend/database.sqlite` | Stores flight logs and parsed metrics | Accessed by backend via ORM/drivers |
+| **Database** | PostgreSQL | `backend/src/config/database.js` | Stores flight logs and parsed metrics | Accessed by backend via pg pool |
 | **AI (Generative)** | Google Gemini API | `backend/src/` (Gemini integration files) | Analyzes telemetry for anomalies | Called by backend during upload process |
 | **ML (Predictive)**| Custom Random Forest | `ml/` (Python scripts) | Computes risk score from static metrics | Invoked or integrated into the backend pipeline |
 
@@ -110,24 +126,41 @@ The frontend logic resides entirely inside the `frontend/src/` folder. The prima
 
 ### Runtime flow (Flight Selection)
 
-```text
-User clicks a flight in the Sidebar
-↓
-Sidebar.jsx triggers onSelect(id) callback
-↓
-App.jsx runs handleFlightSelect(id)
-↓
-App sets isLoading to true
-↓
-App.jsx fetches /api/flights/:id AND /api/flights/:id/report concurrently
-↓
-Backend responds with JSON flight array and AI report text
-↓
-App.jsx updates flightData and reportText states, isLoading to false
-↓
-React re-renders: Map.jsx gets new coordinates, ReportViewer.jsx gets new text
-↓
-UI updates seamlessly with Framer Motion animations
+When a user clicks on a past flight to view its data, a specific sequence of events occurs in the frontend.
+
+* **Technical Operations:**
+  1. The `Sidebar.jsx` component registers the `onClick` event and triggers the `onSelect(id)` callback.
+  2. The `App.jsx` component executes the `handleFlightSelect(id)` function and updates the state (`isLoading = true`).
+  3. `App.jsx` dispatches two concurrent HTTP GET requests to the backend (`/api/flights/:id` and `/api/flights/:id/report`).
+  4. The Express backend responds with the JSON flight array and AI report text.
+  5. `App.jsx` updates the `flightData`, `reportText`, and sets `isLoading` to false.
+  6. The React virtual DOM reconciles the state changes, passing new props to `Map.jsx` and `ReportViewer.jsx`, triggering a seamless UI re-render using Framer Motion.
+
+* **Simple (Real Life) Operations:**
+  1. You pick a movie from a menu (clicking the Sidebar).
+  2. The TV (App) tells you to hold on and shows a loading spinner.
+  3. The TV sends a request to the cable company (Backend) asking for BOTH the video file (telemetry) and the subtitles (AI Report) at the same time.
+  4. The cable company sends both items back to your TV.
+  5. The TV turns off the loading spinner.
+  6. The TV instantly starts playing the movie (the Map) and showing the subtitles (the Report) on the screen!
+
+#### Visual Flow of Flight Selection
+```mermaid
+sequenceDiagram
+    participant User
+    participant Sidebar as Sidebar.jsx
+    participant App as App.jsx
+    participant Backend as Backend API
+    participant UI as Map & ReportViewer
+
+    User->>Sidebar: 1. Clicks a past flight
+    Sidebar->>App: 2. Triggers onSelect(id)
+    App->>App: 3. Sets isLoading = true
+    App->>Backend: 4. Fetches Flight Data & AI Report
+    Backend-->>App: 5. Returns JSON & Markdown
+    App->>App: 6. Updates State (isLoading = false)
+    App->>UI: 7. Passes new data via Props
+    UI->>User: 8. Re-renders UI seamlessly
 ```
 
 ### Common mistakes in this implementation
@@ -289,56 +322,87 @@ Saves to PostgreSQL `reports` table
 
 ---
 
-## Chapter 5: Building AeroInsight Yourself (0 → 15)
+## Chapter 5: Building AeroInsight Yourself (20 Steps)
 
-### Step 0: Understand AeroInsight requirements
-- **Goal**: Analyze drone telemetry to predict risk and generate AI maintenance reports.
-- **Why**: Drone operators need quick safety feedback post-flight.
+Building a full-stack application can feel overwhelming. Let's break down the exact process of building AeroInsight from scratch into 20 manageable steps, divided into 4 logical phases.
 
-### Step 1: Set up development environment
-- **Goal**: Install Node.js, Vite, and PostgreSQL.
+### Phase 1: Foundation (Setting up the Kitchen)
+* **Technical:** Setting up the dev environment, initializing package managers, and establishing database connections.
+* **Simple (Real Life):** Renting the building, buying the ovens, and designing the kitchen layout before you start cooking.
 
-### Step 2: Initialize project
-- **Goal**: Create `backend` (npm init) and `frontend` (npm create vite@latest).
+1. **Understand Requirements:** Define the goal (analyze drone telemetry) and the output (ML risk score + AI report).
+2. **Environment Setup:** Install Node.js (for the backend), Vite (for the frontend), and PostgreSQL (for the database).
+3. **Initialize Frontend:** Run `npm create vite@latest` to generate the React application scaffolding.
+4. **Initialize Backend:** Run `npm init` and install Express.js to create the backend server.
+5. **Database Connection:** Install the `pg` library and configure `backend/src/config/database.js` to connect to PostgreSQL.
+6. **Database Schema:** Write SQL `CREATE TABLE` statements to define the structure for `flights`, `telemetry`, and `reports`.
 
-### Step 3: Set up actual database (`backend/src/config/database.js`)
-- **Goal**: Connect `pg` to PostgreSQL and execute `CREATE TABLE` for `flights`, `telemetry`, and `reports`.
+### Phase 2: The Brains (Writing the Recipes)
+* **Technical:** Training the ML model, exporting the heuristics, and integrating third-party AI APIs.
+* **Simple (Real Life):** The Head Chef writing down their secret recipes and hiring an external food critic (Gemini) to review the meals.
 
-### Step 4: Build ML Model (`ml/train_risk_model.py`)
-- **Goal**: Generate synthetic telemetry data and train a Scikit-Learn Random Forest model.
+7. **Build ML Model (Python):** Write a script (`train_risk_model.py`) to train a Scikit-Learn Random Forest model on synthetic flight data.
+8. **Export ML Logic:** Export the trained decision tree rules into a static JSON file (`risk_model.json`).
+9. **Create ML Service (JS):** Write a Node.js service (`mlService.js`) that reads the JSON rules to instantly score flights without needing a Python server.
+10. **Integrate Gemini AI:** Install `@google/genai` and securely configure it using `process.env.GEMINI_API_KEY`.
 
-### Step 5: Export ML Logic to JSON
-- **Goal**: Export the decision tree structure to `backend/src/ml_models/risk_model.json`.
+### Phase 3: The Backend API (The Chef's Workflow)
+* **Technical:** Building the Express routes, validating incoming data, and executing database transactions.
+* **Simple (Real Life):** The process of the waiter taking the order, the chef verifying the ingredients, cooking the meal, and sending it out.
 
-### Step 6: Create ML Service (`backend/src/services/mlService.js`)
-- **Goal**: Write a JS `while` loop that reads `risk_model.json` to score incoming flights.
+11. **API Routing:** Create `flightRoutes.js` to handle incoming HTTP requests at the `/api/flights` endpoint.
+12. **Data Validation:** Use the `Zod` library to ensure the incoming JSON payload has the correct latitude, longitude, and battery fields.
+13. **Start DB Transaction:** Open a PostgreSQL transaction (`BEGIN`) to ensure partial data isn't saved if something crashes.
+14. **Store Telemetry:** Bulk insert (`UNNEST`) the telemetry array into the database.
+15. **Trigger Analysis & Respond:** Call the ML Service and Gemini API, save the report, commit the transaction, and send a `201 Created` response.
 
-### Step 7: Integrate Gemini AI
-- **Goal**: Install `@google/genai` and initialize it with `process.env.GEMINI_API_KEY`.
+### Phase 4: The Frontend UI (The Dining Room)
+* **Technical:** Building React components, managing global state, and rendering data visualizations.
+* **Simple (Real Life):** Decorating the dining room, printing the menus, and serving the food to the customer so it looks beautiful.
 
-### Step 8: Implement Upload API (`backend/src/controllers/flightController.js`)
-- **Goal**: Write the `uploadFlight` route that saves data to PostgreSQL, calls `mlService`, calls Gemini, and caches the report.
+16. **Sidebar Component:** Create `Sidebar.jsx` to display a list of past flights and house the "Upload" button.
+17. **Map Component:** Integrate `react-leaflet` in `Map.jsx` to draw a line connecting all the GPS coordinates on an interactive map.
+18. **Chart Component:** Use a charting library in `TelemetryChart.jsx` to visually plot altitude and battery drain over time.
+19. **Report Viewer:** Build a component to render the Markdown text returned by the Gemini AI into nicely formatted HTML.
+20. **Wire State Together:** Use `useState` and `useEffect` in `App.jsx` to manage the selected flight and pass the fetched data down to all the visual components!
 
-### Step 9: Build Frontend Map Component (`frontend/src/components/Map.jsx`)
-- **Goal**: Install `react-leaflet` to draw a `<Polyline>` of drone GPS coordinates.
+#### Visual Flow of the 20 Steps
+```mermaid
+graph TD
+    subgraph 1. Foundation
+        A[Requirements] --> B[Environment Setup]
+        B --> C[Init Frontend]
+        B --> D[Init Backend]
+        D --> E[DB Connection]
+        E --> F[DB Schema]
+    end
 
-### Step 10: Build Chart Component (`frontend/src/components/TelemetryChart.jsx`)
-- **Goal**: Plot Altitude and Battery drain over time using a charting library.
+    subgraph 2. The Brains
+        F --> G[Train Python ML]
+        G --> H[Export ML JSON]
+        H --> I[JS ML Service]
+        I --> J[Gemini Integration]
+    end
 
-### Step 11: Build Sidebar Component (`frontend/src/components/Sidebar.jsx`)
-- **Goal**: Create the list of past flights and the file upload button.
+    subgraph 3. Backend API
+        J --> K[API Routing]
+        K --> L[Zod Validation]
+        L --> M[DB Transaction]
+        M --> N[Store Telemetry]
+        N --> O[Trigger AI & Respond]
+    end
 
-### Step 12: Wire Frontend State (`frontend/src/App.jsx`)
-- **Goal**: Use `useState` and `useEffect` to fetch flights and manage the currently selected flight.
-
-### Step 13: Error Handling & Resilience
-- **Goal**: Wrap frontend components in an `<ErrorBoundary>` and add `try/catch` blocks in backend controllers so a Gemini failure doesn't crash the server.
-
-### Step 14: Deployment (Docker)
-- **Goal**: Write a `docker-compose.yml` to spin up the Node backend, React frontend, and a PostgreSQL image simultaneously.
-
-### Step 15: Production improvements (The N+1 Fix)
-- **Goal**: Refactor the telemetry insert loop into a bulk insert query using `pg-format` for massive performance gains.
+    subgraph 4. Frontend UI
+        O --> P[Sidebar]
+        O --> Q[Leaflet Map]
+        O --> R[Charts]
+        O --> S[Report Viewer]
+        P --> T{App.jsx State}
+        Q --> T
+        R --> T
+        S --> T
+    end
+```
 
 ---
 
@@ -363,7 +427,48 @@ Currently, **No**.
 AeroInsight is a web app where drone operators upload flight logs (JSON). The Node/Express backend saves the data to PostgreSQL, runs it through a local JS-based decision tree for risk scoring, and sends it to the Google Gemini API for an AI-generated maintenance report. The React frontend then displays the flight path on an interactive map and shows the AI's analysis.
 
 ### Deep technical walkthrough
-When a user uploads a log, the React `Sidebar` POSTs the array to `/api/flights`. The Node `flightController` generates a UUID and saves it to the `flights` table. It then loops over the JSON, inserting coordinates into the `telemetry` table. Concurrently, it invokes `mlService.js`, which parses a locally cached `risk_model.json` (exported from a Python Random Forest script) to instantly calculate a High/Low risk score using native JS while-loops. The raw JSON is then forwarded to the `@google/genai` API. Gemini returns a Markdown analysis, which is concatenated with the ML score and saved into the `reports` table. Finally, the frontend `App.jsx` updates its state, passing data to Leaflet for mapping, Recharts for graphs, and a Markdown viewer for the report, transitioning everything smoothly using Framer Motion.
+
+To fully understand AeroInsight, you must be able to trace a single request through the entire system end-to-end.
+
+* **Technical Operations:**
+  1. The user uploads a log, and the React `Sidebar` POSTs the parsed JSON array to `/api/flights`.
+  2. The Node `flightController` generates a UUID and saves it to the `flights` PostgreSQL table.
+  3. It unpacks the JSON and performs a bulk insert of all coordinates into the `telemetry` table.
+  4. Concurrently, it invokes `mlService.js`. This service parses a locally cached `risk_model.json` (exported from a Python Random Forest script) to synchronously calculate a High/Low risk score using native JS while-loops.
+  5. The raw JSON is forwarded to the `@google/genai` API for analysis. 
+  6. Gemini returns a Markdown analysis, which is concatenated with the ML score and saved into the `reports` table. 
+  7. The Express backend returns a `201 Created` response.
+  8. Finally, the frontend `App.jsx` updates its state, passing data to Leaflet for mapping, Recharts for graphs, and a Markdown viewer for the report, transitioning everything smoothly using Framer Motion.
+
+* **Simple (Real Life) Operations:**
+  1. **Order Placed:** You hand a dense manual (the flight log) to the front desk (React Sidebar).
+  2. **Filing:** The clerk (Backend) creates a new folder with a unique ID (UUID) in the filing cabinet (PostgreSQL).
+  3. **Organizing:** The clerk unpacks every single page of the manual and puts them in chronological order in the cabinet.
+  4. **The Inspector (ML):** A local inspector instantly checks the pages against a known rulebook (`risk_model.json`) to give a quick Pass/Fail score.
+  5. **The Consultant (AI):** The clerk mails the manual to an expensive external consultant (Gemini API) who writes a detailed custom report.
+  6. **Filing the Report:** The consultant's report is stapled to the inspector's score and put back in the filing cabinet.
+  7. **Delivery:** The clerk hands you a copy of the final report.
+  8. **Presentation:** Your team takes the report and beautifully presents it on a map and charts (Leaflet/Recharts) in the boardroom!
+
+#### Visual End-to-End Execution Flow
+```mermaid
+graph TD
+    A[React Sidebar POST] --> B[flightController]
+    B --> C[(Save to flights table)]
+    B --> D[(Save to telemetry table)]
+    B --> E[Invoke mlService.js]
+    B --> F[Call Gemini AI API]
+    
+    E -->|Calculates| G[Risk Score]
+    F -->|Generates| H[Markdown Report]
+    
+    G --> I[(Save to reports table)]
+    H --> I
+    
+    I --> J[Return 201 Created]
+    J --> K[App.jsx Updates State]
+    K --> L[Render Leaflet & Recharts]
+```
 
 ---
 ## Can I Explain This?
@@ -400,22 +505,39 @@ The deployment configuration is defined in the root `vercel.json` file.
   - `source: "/(.*)"` → Routes all other requests (like `/` or `/dashboard`) to the **frontend** service.
 
 ### Runtime flow (Production Traffic)
-```text
-User navigates to aeroinsight.vercel.app
-↓
-Vercel Edge Network
-↓
-Matches rule "/(.*)" → Serves static Vite HTML/JS bundle
-↓
-React App loads in browser
-↓
-React makes a fetch() to "/api/flights"
-↓
-Vercel Edge Network intercepts request
-↓
-Matches rule "/api/(.*)" → Routes to backend Serverless Function
-↓
-backend/src/index.js executes, queries PostgreSQL, returns JSON
+
+When a user accesses the live application, traffic is routed through Vercel's Edge Network based on the rules in `vercel.json`.
+
+* **Technical Operations:**
+  1. The client navigates to `aeroinsight.vercel.app`. The Vercel Edge Network intercepts the HTTP request.
+  2. The routing engine evaluates the request against `vercel.json` rewrites. Because `/` matches the `/(.*)` rule, it routes to the `frontend` service and serves the static Vite HTML/JS bundle.
+  3. The React application hydrates in the client's browser.
+  4. React initiates a `fetch()` request to `/api/flights`.
+  5. The Vercel Edge Network intercepts this new request. Because it starts with `/api`, it matches the `/api/(.*)` rule and routes to the `backend` Serverless Function.
+  6. The Node.js Serverless Function (`src/index.js`) executes, queries PostgreSQL, and returns the JSON payload back to the client.
+
+* **Simple (Real Life) Operations:**
+  1. You walk into a massive department store (Vercel Edge Network).
+  2. The Greeter (Routing rule) sees you just want to browse (the `/` route), so they point you to the showroom (the Frontend) where you can look at all the pretty displays (the React UI).
+  3. You find something you like and ask to see the stock in the back room (making an `/api/` request).
+  4. The Greeter immediately recognizes this is a special request and routes you to the warehouse manager (the Backend Serverless Function).
+  5. The warehouse manager checks the inventory (Database) and hands you the exact box you requested (JSON data).
+
+#### Visual Flow of Vercel Production Traffic
+```mermaid
+sequenceDiagram
+    participant User
+    participant Edge as Vercel Edge Router
+    participant Frontend as Frontend (Static CDN)
+    participant Backend as Backend (Serverless)
+
+    User->>Edge: 1. GET aeroinsight.vercel.app/
+    Edge->>Frontend: 2. Matches /(.*) -> Serve UI
+    Frontend-->>User: 3. Returns HTML/JS bundle
+    User->>User: 4. React loads in browser
+    User->>Edge: 5. GET /api/flights
+    Edge->>Backend: 6. Matches /api/(.*) -> Spin up function
+    Backend-->>User: 7. Returns JSON flight data
 ```
 
 ### Common mistakes in this implementation
@@ -464,15 +586,29 @@ if (file.name.toLowerCase().endsWith('.csv')) {
 **What is inside it?**
 The `Map` component uses `react-leaflet` to draw lines and markers over map tiles. It also includes an auto-playback feature that animates the drone's path over time.
 
-**Important Code Analysis:**
-```javascript
-const currentPath = positions.slice(0, playbackIndex + 1);
+* **Technical Operations:**
+  1. The component renders two `<Polyline>` elements. The first is a static, dashed gray line representing the entire historical flight path (`positions`).
+  2. The second is a solid blue line representing `currentPath`, which is sliced from `positions` using `playbackIndex`.
+  3. A `useEffect` hook initializes a `setInterval` that increments `playbackIndex` every 500ms.
+  4. Each interval tick updates state, triggering a re-render. The `currentPath` array grows by one element, causing the blue line to visually extend across the map.
 
-<Polyline positions={positions} color="#cbd5e1" dashArray="1, 8" />
-<Polyline positions={currentPath} color="#3b82f6" />
+* **Simple (Real Life) Operations:**
+  1. **The Blueprint:** We draw a faint pencil sketch (dashed gray line) of the entire route the drone took on the map.
+  2. **The Highlighter:** We get a blue highlighter (solid blue line) and start at the beginning.
+  3. **The Metronome:** A clock ticks every half-second (`setInterval`).
+  4. **The Animation:** Every time the clock ticks, we drag the highlighter one step further along the pencil sketch. To the user, it looks like a smooth video playback of the drone flying!
+
+#### Visual Animation Loop
+```mermaid
+graph TD
+    A[Mount Component] --> B[Draw Faint Dashed Line]
+    B --> C[Start Timer setInterval]
+    C --> D{Wait 500ms}
+    D --> E[Increment playbackIndex]
+    E --> F[Slice currentPath array]
+    F --> G[Re-render Solid Blue Line longer]
+    G --> D
 ```
-- **Why it exists:** To create the "Play" animation, it actually renders two polylines. One is a faint, dashed gray line (`#cbd5e1`) representing the full historical path. The other is a solid blue line representing the path flown *up to the current playback index*. 
-- **Execution Flow:** `useEffect` sets up a `setInterval` that increments `playbackIndex` every 500ms. When `playbackIndex` increments, `currentPath` recalculates, and React re-renders the solid blue line slightly longer.
 
 ```javascript
 {issues.map((point, idx) => (
@@ -521,19 +657,33 @@ try {
 - **Why it matters:** It ensures the database still records the flight and telemetry data. The user still gets to see their flight on the map, even if the AI analysis is temporarily unavailable.
 
 ### 3. Database Transaction Risk (The Phantom Data Problem)
-```javascript
-// 1. Insert Flight Record
-await db.query('INSERT INTO flights (id) VALUES ($1)', [flightId]);
 
-// 2. Insert Telemetry points
-for (const point of telemetryData) {
-    await db.query('INSERT INTO telemetry ...');
-}
+**The Critical Bug:** There are no SQL Transactions (`BEGIN`, `COMMIT`, `ROLLBACK`) used in the current implementation.
+
+* **Technical Operations:**
+  1. The backend successfully inserts the flight UUID into the `flights` table.
+  2. It begins a loop to insert 1,000 telemetry points into the `telemetry` table.
+  3. If the database connection drops at point 500, a PostgreSQL error is thrown.
+  4. The outer `try/catch` catches the error and sends a `500 Internal Server Error` to the client.
+  5. **The Bug:** The first 499 rows and the flight UUID *were already inserted*. They are now orphaned data (phantom data) because the transaction was never rolled back, and the Gemini report was never generated.
+  6. **The Fix:** Wrap all database inserts in a SQL transaction (`BEGIN`). If any step fails, call `await db.query('ROLLBACK')`. If all succeed, call `COMMIT`.
+
+* **Simple (Real Life) Operations:**
+  1. **The Scenario:** You go to the grocery store to buy ingredients for a cake. You need flour, sugar, and eggs.
+  2. **The Problem:** You buy the flour and sugar (Flights and Telemetry), but the store is completely out of eggs (Database crash).
+  3. **The Phantom Data:** You go home without eggs. Now you have a bag of flour and sugar sitting in your pantry that you can't use because the recipe is incomplete. They are taking up space forever.
+  4. **The Fix (Transactions):** The store holds your items at the register (BEGIN). You check if they have all three items. If they do, you pay for all three at once (COMMIT). If they don't have eggs, you put the flour and sugar back on the shelf (ROLLBACK) and go home with a clean pantry.
+
+#### Visual Transaction Failure Flow
+```mermaid
+graph TD
+    A[Start Request] --> B[(Insert Flight)]
+    B -->|Success| C[(Insert Telemetry 1 to 499)]
+    C -->|Success| D[(Insert Telemetry 500)]
+    D -->|CRASH!| E[Catch Error]
+    E --> F[Send 500 Response to UI]
+    C -.->|ORPHANED DATA| G((Database State Corrupted))
 ```
-- **The Critical Bug:** There are no SQL Transactions (`BEGIN`, `COMMIT`, `ROLLBACK`) used here. 
-- **The Scenario:** Imagine the backend successfully inserts the flight into the `flights` table. It then starts looping through 1,000 telemetry points. At point 500, the database connection drops, or a unique constraint is violated, throwing a PostgreSQL error. 
-- **The Result:** The outer `try/catch` catches the error and sends a `500 Internal Server Error` to the user. However, the `flights` table row and 499 `telemetry` rows *were already inserted*. They are now orphaned data (phantom data) because the transaction was never rolled back, and the Gemini report was never generated.
-- **Interview Fix:** You must wrap all three database inserts (`flights`, `telemetry`, `reports`) in a SQL transaction. If any step fails, call `await db.query('ROLLBACK')` so the database remains clean.
 
 ### 🧠 Stop and Think
 > In `backend/src/index.js`, we have `app.use(express.json({ limit: '50mb' }));`. Why is this limit so high?
@@ -568,36 +718,37 @@ tree = clf.estimators_[0].tree_
 ### 2. The JavaScript Inference Engine (`backend/src/services/mlService.js`)
 
 **What is inside it?**
-This service reads the `risk_model.json` generated by Python and performs the exact same mathematical splits (binary tree traversal) in Node.js.
+This service reads the `risk_model.json` generated by Python and performs the exact same mathematical splits (binary tree traversal) in Node.js to instantly score flights.
 
-**The Tree Traversal Loop:**
-```javascript
-while (tree.children_left[node] !== -1 && tree.children_right[node] !== -1) {
-    const featureIndex = tree.feature[node];
-    const threshold = tree.threshold[node];
-    const featureName = modelData.feature_names[featureIndex];
-    const value = features[featureName] || 0;
+* **Technical Operations:**
+  1. The service reads the exported `tree` arrays (`children_left`, `children_right`, `feature`, `threshold`).
+  2. Starting at `node = 0`, a `while` loop checks if the flight's telemetry feature value is $\le$ the node's threshold.
+  3. If true, it traverses to the left child node. If false, it traverses to the right child node.
+  4. The loop stops when it reaches a leaf node (where children IDs are `-1`).
+  5. It calculates the risk class by comparing the majority values in the leaf node array (`tree.value[node][0]`).
+
+* **Simple (Real Life) Operations:**
+  1. **The Game of 20 Questions:** Imagine a game where a bouncer (the algorithm) asks yes/no questions to let a drone into the "Safe Club".
+  2. **Question 1:** "Is your battery drain less than 79%?" If YES, go to the left door. If NO, go to the right door.
+  3. **Question 2:** At the next door, another bouncer asks, "Was your max altitude less than 150m?" 
+  4. **The Verdict:** You keep answering questions and going through doors until you land in a final room. The room has a sign that says "HIGH RISK" or "LOW RISK".
+
+#### Visual Decision Tree Traversal
+```mermaid
+graph TD
+    A[Start: Node 0] --> B{Battery Drain <= 79.5?}
+    B -->|Yes| C[Node: children_left]
+    B -->|No| D[Node: children_right]
     
-    if (value <= threshold) {
-        node = tree.children_left[node];
-    } else {
-        node = tree.children_right[node];
-    }
-}
+    C --> E{Altitude <= 150m?}
+    D --> F{Speed <= 25m/s?}
+    
+    E -->|Yes| G([Leaf: LOW RISK])
+    E -->|No| H([Leaf: HIGH RISK])
+    
+    F -->|Yes| I([Leaf: LOW RISK])
+    F -->|No| J([Leaf: HIGH RISK])
 ```
-- **How it works:** In Scikit-Learn's underlying C-struct implementation, a decision tree is represented as parallel arrays. 
-- Node `0` is the root. `tree.feature[0]` tells us which feature to check (e.g., `battery_drain`). `tree.threshold[0]` is the split value (e.g., `79.5`).
-- If the flight's battery drain is $\le 79.5$, we move to the left child node ID: `node = tree.children_left[0]`.
-- If it's $> 79.5$, we move to the right child node ID: `node = tree.children_right[0]`.
-- The loop continues until it reaches a leaf node (where the children IDs are `-1`).
-
-**The Final Prediction:**
-```javascript
-const classValues = tree.value[node][0];
-const riskClass = classValues[1] > classValues[0] ? 1 : 0;
-```
-- At the leaf node, `tree.value[node][0]` contains an array representing the number of training samples that ended up in this leaf, grouped by class: e.g., `[5, 45]`.
-- Since `45 > 5`, it means the majority of samples in this leaf were class `1` (High Risk), so the JS function returns `1`.
 
 ### 🧠 Stop and Think
 > What is the mathematical trade-off of exporting `estimators_[0]` instead of the whole Random Forest?
@@ -642,8 +793,32 @@ RUN echo 'server { \
     } \
 }' > /etc/nginx/conf.d/default.conf
 ```
-- **Why is this here?** React is a Single Page Application (SPA). If a user navigates directly to `aeroinsight.com/dashboard`, the browser asks the Nginx server for a file named `/dashboard/index.html`. That file doesn't exist (because routing is handled by React Router in JS). Nginx would normally return a `404 Not Found`. 
-- **The Fix:** `try_files $uri $uri/ /index.html` tells Nginx: "If you can't find the requested file, just serve `index.html` and let the JavaScript figure out what page to show."
+
+* **Technical Operations:**
+  1. React is a Single Page Application (SPA). All routing is handled client-side by JavaScript (e.g., React Router).
+  2. If a user directly navigates to `aeroinsight.com/dashboard`, the browser sends an HTTP GET request to Nginx for a file named `/dashboard/index.html`.
+  3. Because Vercel/Vite only built a single root `/index.html`, Nginx cannot find `/dashboard/index.html` on the disk and returns a `404 Not Found`.
+  4. The `try_files` directive intercepts this. It tells Nginx: "Check if the exact file exists (`$uri`). If not, check if it's a directory (`$uri/`). If both fail, fallback and serve the root `/index.html`."
+  5. The root HTML loads the React JS bundle, which reads the URL (`/dashboard`) and renders the correct component.
+
+* **Simple (Real Life) Operations:**
+  1. **The Request:** You go to a massive library and ask the librarian (Nginx) for a very specific book called "Dashboard" on the 3rd floor.
+  2. **The Problem:** The library doesn't actually have different floors (it's a Single Page Application). The librarian looks for the 3rd floor, can't find it, and tells you to leave (404 Error).
+  3. **The Fix (`try_files`):** We give the librarian a new rule: "If someone asks for a room or floor you can't find, just hand them the Master Index Book (`index.html`)."
+  4. **The Result:** The librarian hands you the Master Index. You open it, it magically figures out you wanted the Dashboard, and takes you right there!
+
+#### Visual SPA Routing Flow
+```mermaid
+graph TD
+    A[User visits /dashboard] --> B(Nginx Server)
+    B --> C{Does /dashboard.html exist on disk?}
+    C -->|Yes| D[Serve specific file]
+    C -->|No| E{try_files directive}
+    E -->|Fallback| F[Serve root /index.html]
+    F --> G[React JS loads]
+    G --> H[React sees /dashboard in URL]
+    H --> I[Render Dashboard Component]
+```
 
 ### 2. The Backend `Dockerfile` (Development vs Production)
 
@@ -675,16 +850,38 @@ CMD ["npm", "run", "dev"]
 
 ## Chapter 13 (Bonus): The `database.sqlite` Ghost (Local vs Production DBs)
 
-If you inspect the `backend/` directory, you will notice a file named `database.sqlite` taking up around 73KB. However, if you look closely at `backend/src/config/database.js`, the application imports the `pg` library and establishes a `Pool` connection to a PostgreSQL `DATABASE_URL`. 
+*(Note: During a recent senior-level audit, this file was moved to the `deleted/` directory to prevent confusion, but here is why it existed in the first place!)*
 
-**Why does a SQLite file exist in a PostgreSQL project?**
+If you had inspected the `backend/` directory previously, you would have noticed a file named `database.sqlite` taking up around 73KB. However, if you look closely at `backend/src/config/database.js`, the application imports the `pg` library and establishes a `Pool` connection to a PostgreSQL `DATABASE_URL`. 
+
+**Why did a SQLite file exist in a PostgreSQL project?**
 
 ### The "Migration Ghost" Phenomenon
 This is a very common scenario in rapid prototyping and startup environments, and it makes for an excellent interview anecdote about tech debt and environment parity.
 
-1. **The MVP Phase**: When the developer first started building AeroInsight, they likely used SQLite (via `sqlite3` or an ORM like Sequelize/Prisma) because it requires zero setup. The `database.sqlite` file was created to rapidly test the `uploadFlight` controller locally.
-2. **The Production Shift**: When it came time to deploy to Vercel (which uses ephemeral, stateless serverless functions), SQLite was no longer viable. Serverless functions cannot write to a local filesystem persistently. The developer migrated the code to use PostgreSQL (`pg`), allowing the app to connect to a remote, persistent database (like Supabase, Neon, or AWS RDS).
-3. **The Oversight**: The developer forgot to delete the old `database.sqlite` file and didn't add `*.sqlite` to the `.gitignore`. As a result, the dead database was committed to version control.
+* **Technical Operations:**
+  1. **The MVP Phase:** The developer initially used `sqlite3` to rapidly prototype the `uploadFlight` controller without needing a database server. This created `database.sqlite`.
+  2. **The Production Shift:** Vercel serverless functions cannot write to a local filesystem, so the backend was migrated to use `pg` and a remote PostgreSQL database (`DATABASE_URL`).
+  3. **The Bug:** The developer failed to delete `database.sqlite` and did not add `*.sqlite` to `.gitignore`.
+  4. **The Result:** The dead database file was committed to Git. New developers clone the repo, see the SQLite file, but the code actually requires a running PostgreSQL server, breaking local environment parity.
+
+* **Simple (Real Life) Operations:**
+  1. **The MVP Phase:** You build a small treehouse using a rusty hammer you found in the garage (SQLite).
+  2. **The Production Shift:** You decide to build a real house, so you buy expensive power tools (PostgreSQL).
+  3. **The Bug:** You accidentally leave the rusty hammer on the kitchen counter of the new house.
+  4. **The Result:** When you invite guests (new developers) over, they see the rusty hammer and think they are supposed to use it to fix the house, but none of the power tools fit it!
+
+#### Visual Migration Ghost Flow
+```mermaid
+graph TD
+    A[Start Project] --> B[Use SQLite for fast local dev]
+    B --> C(database.sqlite created)
+    C --> D[Deploy to Vercel]
+    D --> E{Serverless requires Postgres}
+    E --> F[Migrate code to pg library]
+    F --> G[Forget to delete database.sqlite]
+    G --> H((Codebase Rot & Confusion))
+```
 
 ### The Problem: Lack of Environment Parity
 In its current state, AeroInsight expects a running PostgreSQL database even for local development (since `database.js` strictly requires `DATABASE_URL`). 
@@ -698,7 +895,9 @@ In its current state, AeroInsight expects a running PostgreSQL database even for
 
 ## Chapter 14 (Bonus): Sandbox Testing Strategy (`test_gemini.js`)
 
-In the `backend` folder, there is a small, seemingly insignificant file called `test_gemini.js`. 
+*(Note: This file was recently moved to the `deleted/` directory during a cleanup, as it had served its purpose.)*
+
+Previously, in the `backend` folder, there was a small, seemingly insignificant file called `test_gemini.js`. 
 
 **The Code:**
 ```javascript
@@ -767,10 +966,33 @@ exports.validateTelemetry = (req, res, next) => {
 ```
 
 ### Engineering Brilliance
+
 This middleware intercepts the HTTP request *before* it reaches the controller. 
-1. **Strict Type Coercion**: Zod ensures that `latitude` is strictly a number between `-90` and `90`. If a malicious user sends `"latitude": "DROP TABLE flights"`, Zod catches it immediately.
-2. **Fail-Fast Mechanism**: If validation fails, `res.status(400)` is returned instantly. This saves CPU cycles (no ML model inference is run) and saves money (no Gemini API calls are made for bad data).
-3. **Clean Controllers**: Because this logic lives in a separate middleware file, `flightController.js` can blindly trust `req.body`. The controller focuses entirely on business logic rather than `if (latitude > 90)` checks.
+
+* **Technical Operations:**
+  1. The Express Router receives the `POST /api/flights` request and routes it to `validateTelemetry`.
+  2. Zod evaluates `req.body` against `telemetrySchema` for strict type coercion (e.g. `latitude` must be a number between -90 and 90).
+  3. **Fail-Fast Mechanism:** If validation fails, `res.status(400)` is returned instantly. This saves CPU cycles and prevents costly Gemini API calls for bad data.
+  4. **Success:** If validation passes, `next()` is called, forwarding the sanitized payload to `flightController.js`.
+  5. The controller can now blindly trust `req.body` without cluttering business logic with `if` statements.
+
+* **Simple (Real Life) Operations:**
+  1. **The Request:** You try to bring a giant box of random items into an exclusive club (The Controller).
+  2. **The Bouncer (Zod):** Before you can enter, a massive bouncer intercepts you at the door.
+  3. **The Check:** The bouncer has a strict guest list (Schema). "Do you have a valid latitude? Is your battery a number between 0 and 100?"
+  4. **Fail-Fast:** If you hand the bouncer garbage data, you are immediately kicked out to the street (400 Error). You never even see the inside of the club.
+  5. **Clean Club:** Because the bouncer is so strict, the bartender inside (The Controller) never has to check IDs. They just focus on serving drinks (Business Logic).
+
+#### Visual Validation Intercept Flow
+```mermaid
+graph LR
+    A[Incoming POST Request] --> B{Zod Middleware Bouncer}
+    B -- Invalid Data --> C[400 Bad Request]
+    C -.-> D[Save CPU & $$$]
+    B -- Valid Data --> E[next]
+    E --> F[flightController]
+    F -.-> G[Pure Business Logic]
+```
 
 ### Interview Discussion Point
 *Q: Why use Zod instead of manual `if` statements?*
@@ -780,10 +1002,10 @@ This middleware intercepts the HTTP request *before* it reaches the controller.
 
 ## Chapter 16 (Bonus 2): Codebase Rot and Seeding (`seed.js`)
 
-In Chapter 13, we explored the "Migration Ghost"—the fact that a `database.sqlite` file was left behind when the project migrated to PostgreSQL. If you open `backend/src/seed.js`, you'll find the smoking gun of this migration.
+In Chapter 13, we explored the "Migration Ghost"—the fact that a `database.sqlite` file was left behind when the project migrated to PostgreSQL. If you were to open the now-deleted `backend/src/seed.js`, you'd find the smoking gun of this migration.
 
 ### The Broken Seeder
-The purpose of `seed.js` is to populate the database with mock flight data so developers don't have to manually upload a CSV every time they test the UI. However, if you run `node src/seed.js` today, it will instantly crash. 
+The purpose of `seed.js` was to populate the database with mock flight data so developers wouldn't have to manually upload a CSV every time they test the UI. However, if you ran `node src/seed.js` right before it was deleted, it would instantly crash. 
 
 Look closely at how it interacts with the database:
 ```javascript
@@ -806,12 +1028,30 @@ However, as we saw earlier, `config/database.js` now exports a PostgreSQL `Pool`
 
 ### The Interview Lesson: Codebase Rot
 This is a perfect example of "Codebase Rot" (or Bit Rot). 
-- When the developer upgraded the core application (`database.js` and `flightController.js`) to use PostgreSQL, they forgot to update auxiliary scripts like `seed.js`. 
-- Because auxiliary scripts aren't imported into the main application, the server compiles and runs perfectly fine. The bug is entirely invisible until a new developer joins the team and tries to seed their local database.
 
-**How to prevent this:** 
-1. **Automated Testing**: A CI/CD pipeline that runs `npm run seed` in a test environment before deploying would catch this immediately.
-2. **TypeScript**: If `db` was strongly typed as a `pg.Pool`, the IDE would highlight `db.run()` in red, warning the developer that the method no longer exists on the object.
+* **Technical Operations:**
+  1. The core application (`database.js` and `flightController.js`) was upgraded from SQLite to PostgreSQL.
+  2. The auxiliary script (`seed.js`) was forgotten and not updated. It still tries to call `db.run()`.
+  3. Because auxiliary scripts aren't imported into the main application, the Node.js server compiles and runs perfectly fine.
+  4. The bug remains entirely invisible in production.
+  5. A new developer joins, attempts to run `npm run seed` locally to test the UI, and the script immediately throws a `TypeError: db.run is not a function`.
+
+* **Simple (Real Life) Operations:**
+  1. **The Core Upgrade:** You replace the entire engine in your car with a brand new electric motor.
+  2. **The Forgotten Auxiliary:** You forget to replace the gas tank cap because you never use it anymore.
+  3. **The Invisible Bug:** The car drives perfectly on the highway, so you have no idea anything is wrong.
+  4. **The Crash:** Six months later, your friend borrows the car, pulls into a gas station, and is completely confused when they open the gas cap and find wires inside instead of a fuel pipe!
+
+#### Visual Codebase Rot Flow
+```mermaid
+graph TD
+    A[Core App migrated to PostgreSQL] --> B(Works perfectly in Production)
+    C[seed.js forgotten & still uses SQLite] --> D{Is seed.js imported by main app?}
+    D -->|No| E[Server runs without crashing]
+    E --> F[Invisible Bug is pushed to GitHub]
+    F --> G[New Dev runs npm run seed]
+    G --> H[TypeError! Local Dev Experience Ruined]
+```
 
 ---
 
@@ -827,12 +1067,31 @@ DATABASE_URL=postgres://aeroinsight:password@localhost:5432/aeroinsight
 ```
 
 ### Why is this file so important?
-In modern software development, hardcoding secrets (like API keys or database passwords) into the source code is a catastrophic security vulnerability. If a developer hardcoded `GEMINI_API_KEY = "AIzaSy..."` into `flightController.js` and pushed it to GitHub, bots would scrape the key within seconds and rack up thousands of dollars in AI usage charges.
+In modern software development, hardcoding secrets (like API keys or database passwords) into the source code is a catastrophic security vulnerability. 
 
-To prevent this, the Twelve-Factor App methodology dictates that **configuration should be stored in the environment**.
+* **Technical Operations:**
+  1. The Twelve-Factor App methodology dictates that configuration should be stored in the environment, not the codebase.
+  2. **`.env`**: This file contains the actual secrets (e.g., `GEMINI_API_KEY=AIzaSy...`). It is strictly added to `.gitignore` so it is never tracked by version control or uploaded to GitHub.
+  3. **`.env.example`**: This is a template file that *is* committed to version control. It shows new developers exactly which variables the application requires (without exposing real secrets) and provides safe local defaults like `postgres://localhost`.
+  4. If a developer accidentally hardcodes a secret into `flightController.js` and pushes it, malicious bots will scrape the key within seconds and rack up thousands of dollars in API charges.
 
-1. **`.env`**: The actual file containing the real secrets. It is strictly added to `.gitignore` so it never leaves the developer's laptop.
-2. **`.env.example`**: A template file that *is* committed to version control. It shows new developers exactly which variables the application requires to run, without exposing any real secrets.
+* **Simple (Real Life) Operations:**
+  1. **The Codebase:** The codebase is like a public blueprint for a bank vault. Anyone on the internet (GitHub) can look at it to see how the vault is built.
+  2. **Hardcoded Secrets:** Hardcoding a password in the code is like writing the combination to the vault directly on the public blueprint. Thieves (Bots) will find it instantly!
+  3. **`.env` (The Secret):** The `.env` file is the actual combination locked inside the bank manager's brain. It never goes on the public blueprint.
+  4. **`.env.example` (The Template):** This is a sticky note on the blueprint that says: *"To open this vault, you will need a 6-digit combination."* It tells you *what* you need without telling you the actual secret!
+
+#### Visual Environment Security Flow
+```mermaid
+graph TD
+    A[Developer writes code] --> B{Where does the API Key go?}
+    B -->|Hardcoded in JS| C[Pushed to GitHub]
+    C --> D((Bots steal key! $$$ Loss))
+    
+    B -->|Saved in .env| E[.env ignored by Git]
+    E --> F[Pushed to GitHub without secrets]
+    F --> G[Code is Safe & Secure]
+```
 
 ### The Developer Experience (DX) Win
 Notice the `DATABASE_URL` in `.env.example`: 
@@ -845,3 +1104,115 @@ docker run --name aeroinsight-db -e POSTGRES_USER=aeroinsight -e POSTGRES_PASSWO
 And immediately, their local backend will connect successfully without any configuration headaches!
 
 *(End of Textbook)*
+
+---
+
+## While Studying: Explanation of Frontend API Calls
+
+*How does the frontend send data to the backend in AeroInsight?*
+
+This step outlines the flow between a user selecting a file on the client side and the backend processing that data.
+
+### 1. What is Vite? (Frontend Build Tool)
+* **Technical:** Vite compiles and bundles the React code (JSX syntax) into optimized, plain JavaScript and CSS that the browser can natively execute.
+* **Simple (Real Life):** Think of Vite as a translator. You wrote a book in a special dialect (React), and Vite instantly translates it into a universal language (plain JavaScript) so that anyone (the browser) can read it perfectly.
+
+### 2. What is the React Code Doing? (File Handling and Parsing)
+* **Technical:** When a user clicks "Upload", React uses the browser's `FileReader` API to read the file into memory. The flight log is read as a raw string of text. React parses this text into a structured JavaScript Array using `JSON.parse()`.
+* **Simple (Real Life):** 
+  1. **Reading:** You hand a locked diary (the file) to React. Because of security, React has to ask your explicit permission to open it (using `FileReader`). 
+  2. **Parsing:** At first, the diary is just one giant, unreadable block of text. React reads it and organizes it into a neat Excel spreadsheet (a JavaScript Array) so it can easily read the data row by row.
+
+### 3. What is Fetch / Axios doing? (HTTP Client)
+* **Technical:** React serializes the array back into a JSON string to serve as the request payload. Fetch initiates an HTTP `POST` request to the backend server endpoint (`/api/flights`), including the JSON payload in the request body.
+* **Simple (Real Life):** React takes the neat spreadsheet, puts it in a sealed shipping box (the JSON payload), and hands it to a delivery truck (Fetch). It tells the truck, "Drive this box to the `/api/flights` address and drop it off" (`POST` request).
+
+#### Visual Flow of the Data
+```mermaid
+sequenceDiagram
+    participant User
+    participant React as React App
+    participant Fetch as Fetch (Delivery Truck)
+    participant Backend as Express Backend
+    
+    User->>React: 1. Selects sample_flight.json
+    React->>React: 2. FileReader reads raw text
+    React->>React: 3. JSON.parse() creates JS Array
+    React->>Fetch: 4. Packages array into JSON box
+    Fetch->>Backend: 5. HTTP POST /api/flights (Drives box to backend)
+    Backend-->>Fetch: 6. 201 Created (Success!)
+```
+
+### 4. Actual API Request (JSON Payload)
+This is exactly what the JSON payload looks like when the React frontend sends it to the backend `POST /api/flights` endpoint. It perfectly matches the `telemetrySchema` validation rules on the backend:
+
+```json
+[
+  {
+    "latitude": 40.7128,
+    "longitude": -74.0060,
+    "altitude": 120.5,
+    "battery": 98.2,
+    "issue": "none",
+    "timestamp": "2023-10-27T10:00:01Z"
+  },
+  {
+    "latitude": 40.7129,
+    "longitude": -74.0061,
+    "altitude": 121.0,
+    "battery": 98.0,
+    "timestamp": "2023-10-27T10:00:02Z"
+  }
+]
+```
+
+### 5. Actual Backend Route (Express Router)
+* **Technical:** When the HTTP request reaches the backend server, the Express application routes the incoming request to the appropriate endpoint handler based on the URL path and HTTP method. It executes the middleware chain sequentially (like `validateTelemetry`), and if validation passes, it proceeds to the `flightController.uploadFlight` controller function.
+* **Simple (Real Life):** The Express Router is like a receptionist at an office building. When the delivery truck (Fetch) arrives with a package (JSON payload) and knocks on the door `/api/flights`, the receptionist checks the package with a security guard (`validateTelemetry`). If it's safe, the receptionist hands it over to the chef (`flightController`) to do the actual work.
+
+In `backend/src/routes/flightRoutes.js`, you can see this routing in action:
+
+```javascript
+const express = require('express');
+const router = express.Router();
+const flightController = require('../controllers/flightController');
+const { validateTelemetry } = require('../middlewares/validate');
+
+// Endpoint definition for flight data upload
+router.post('/', validateTelemetry, flightController.uploadFlight);
+```
+
+### 6. The Controller (Request Handler)
+Inside `flightController.uploadFlight`, the core business logic is executed. 
+
+* **Technical Operations:**
+  1. **Validation Check:** Performs strict validation of `req.body` against `telemetrySchema` (using Zod).
+  2. **Database Transaction:** Acquires a PostgreSQL connection and initiates an ACID transaction (`BEGIN`) to ensure atomicity (all-or-nothing).
+  3. **Save Data:** Inserts a new flight record, then performs a bulk insert (`UNNEST`) of all telemetry data points.
+  4. **AI Analysis:** Passes the data to Gemini AI and a local ML service for reporting and risk scoring.
+  5. **Success Response:** Commits the transaction (`COMMIT`) and sends a `201 Created` HTTP response to the client.
+
+* **Simple (Real Life) Operations:**
+  1. **Validation:** The Chef double-checks the ingredients to make sure nothing is spoiled.
+  2. **Transaction:** The Chef locks the kitchen doors. If a mistake happens while cooking, they throw everything out and start over. Nothing goes to the customer unless it's perfect.
+  3. **Save Data:** The Chef rapidly chops all the ingredients and puts them into neatly labeled containers in the fridge (Database).
+  4. **AI Analysis:** The Chef asks the Head Food Critic (Gemini AI) for a review of the meal.
+  5. **Success Response:** The meal is served, and a "5-Star Success" receipt is handed back to the delivery truck!
+
+#### Visual Flow of the Backend Controller
+```mermaid
+graph TD
+    A[Router receives POST /api/flights] --> B{validateTelemetry Middleware}
+    B -- Fails --> C[Return 400 Error]
+    B -- Passes --> D[flightController.uploadFlight]
+    
+    subgraph Controller Transaction
+    D --> E[1. Zod Validation]
+    E --> F[2. BEGIN SQL Transaction]
+    F --> G[3. Insert Flight & Telemetry]
+    G --> H[4. Call Gemini AI & ML]
+    H --> I[5. COMMIT SQL Transaction]
+    end
+    
+    I --> J[Return 201 Success Response]
+```

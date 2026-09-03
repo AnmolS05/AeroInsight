@@ -8,7 +8,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import ReportModal from './components/ReportModal';
 import MapModal from './components/MapModal';
-import { Maximize2, X, RefreshCw } from 'lucide-react';
+import { Maximize2, X, RefreshCw, PlaneTakeoff } from 'lucide-react';
 
 function App() {
   const [flights, setFlights] = useState([]);
@@ -172,10 +172,26 @@ function App() {
         <div className="flex-1 flex flex-col gap-4 h-[calc(100%-80px)]">
           <ErrorBoundary>
           {isLoading ? (
-            <div className="flex-1 flex flex-col items-center justify-center border border-indigo-500/20 rounded-[2.5rem] bg-[#0b1120]/50 backdrop-blur-xl m-4 shadow-inner">
-              <div className="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mb-6 shadow-[0_0_20px_rgba(99,102,241,0.5)]"></div>
-              <p className="text-indigo-400 font-black uppercase tracking-widest text-xs animate-pulse">Loading telemetry data...</p>
-            </div>
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex-1 flex flex-col items-center justify-center border border-indigo-500/20 rounded-[3rem] bg-[#0b1120]/60 backdrop-blur-3xl m-6 shadow-inner relative overflow-hidden"
+            >
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none" />
+              
+              <div className="relative z-10 w-32 h-32 mb-8">
+                <div className="absolute inset-0 border-4 border-indigo-500/20 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-indigo-500 rounded-full border-t-transparent animate-spin"></div>
+                <div className="absolute inset-4 border-4 border-purple-500/20 rounded-full"></div>
+                <div className="absolute inset-4 border-4 border-purple-500 rounded-full border-b-transparent animate-spin shadow-[0_0_20px_rgba(168,85,247,0.5)]" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <PlaneTakeoff size={24} className="text-white animate-pulse" />
+                </div>
+              </div>
+
+              <h3 className="text-2xl font-black text-white mb-2 tracking-tight drop-shadow-md relative z-10">Processing Telemetry</h3>
+              <p className="text-indigo-400 font-bold uppercase tracking-widest text-xs relative z-10 animate-pulse">Running AI Analysis Engine...</p>
+            </motion.div>
           ) : flightData.length > 0 ? (
             <>
               <motion.div 
@@ -188,7 +204,7 @@ function App() {
                 <div className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-blue-500/20 p-6 flex flex-col justify-center relative overflow-hidden group hover:border-blue-500/40 hover:shadow-[0_8px_30px_rgb(59,130,246,0.15)] transition-all duration-500">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[40px] rounded-full pointer-events-none group-hover:scale-150 transition-transform duration-1000" />
                   <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-2 mb-3 relative z-10">
-                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full" /> Flight Duration
+                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)]" /> Flight Duration
                   </span>
                   <span className="text-4xl font-black text-white drop-shadow-md relative z-10">
                     {(() => {
@@ -206,7 +222,7 @@ function App() {
                 <div className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-indigo-500/20 p-6 flex flex-col justify-center relative overflow-hidden group hover:border-indigo-500/40 hover:shadow-[0_8px_30px_rgb(99,102,241,0.15)] transition-all duration-500">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-[40px] rounded-full pointer-events-none group-hover:scale-150 transition-transform duration-1000" />
                   <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-2 mb-3 relative z-10">
-                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" /> Max Altitude
+                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]" /> Max Altitude
                   </span>
                   <span className="text-4xl font-black text-white drop-shadow-md relative z-10 flex items-baseline">
                     {Math.max(...flightData.map(d => d.altitude))}
@@ -217,7 +233,7 @@ function App() {
                 <div className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-emerald-500/20 p-6 flex flex-col justify-center relative overflow-hidden group hover:border-emerald-500/40 hover:shadow-[0_8px_30px_rgb(16,185,129,0.15)] transition-all duration-500">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[40px] rounded-full pointer-events-none group-hover:scale-150 transition-transform duration-1000" />
                   <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-2 mb-3 relative z-10">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" /> Final Battery
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]" /> Final Battery
                   </span>
                   <span className="text-4xl font-black text-white drop-shadow-md relative z-10 flex items-baseline">
                     {flightData[flightData.length - 1].battery}
@@ -247,7 +263,7 @@ function App() {
                       <Maximize2 size={18} />
                     </button>
                   </div>
-                  <div className="flex-1 rounded-[1.5rem] overflow-hidden border border-indigo-500/10 bg-[#0a0f1c] relative z-10">
+                  <div className="flex-1 rounded-[1.5rem] overflow-hidden border border-indigo-500/10 bg-[#0a0f1c] relative z-10 shadow-inner">
                     <Map telemetryData={flightData} />
                   </div>
                 </motion.section>
@@ -284,14 +300,16 @@ function App() {
                   </div>
                   <div className="flex-1 overflow-y-auto pr-3 custom-scrollbar relative z-10">
                     {isRegeneratingReport ? (
-                      <div className="h-full flex items-center justify-center text-purple-400/50 font-black tracking-widest uppercase text-xs animate-pulse">
-                        <p>Generating New Intelligence...</p>
+                      <div className="h-full flex flex-col items-center justify-center text-purple-400/50">
+                        <div className="w-12 h-12 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-4" />
+                        <p className="font-black tracking-widest uppercase text-xs animate-pulse">Generating New Intelligence...</p>
                       </div>
                     ) : reportText ? (
                       <ReportViewer markdown={reportText} />
                     ) : (
-                      <div className="h-full flex items-center justify-center text-purple-400/50 font-black tracking-widest uppercase text-xs animate-pulse">
-                        <p>Loading Intelligence...</p>
+                      <div className="h-full flex flex-col items-center justify-center text-purple-400/50">
+                        <div className="w-12 h-12 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-4" />
+                        <p className="font-black tracking-widest uppercase text-xs animate-pulse">Loading Intelligence...</p>
                       </div>
                     )}
                   </div>
@@ -316,19 +334,27 @@ function App() {
             </>
           ) : (
             <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex-1 flex flex-col items-center justify-center border border-indigo-500/20 rounded-[3rem] bg-[#0b1120]/60 backdrop-blur-3xl m-6 shadow-inner relative overflow-hidden"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className="flex-1 flex flex-col items-center justify-center border border-indigo-500/20 rounded-[3rem] bg-[#0b1120]/60 backdrop-blur-3xl m-6 shadow-[0_0_50px_rgba(0,0,0,0.3)] relative overflow-hidden group"
             >
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
-              <div className="w-24 h-24 bg-indigo-500/10 rounded-[2rem] flex items-center justify-center mb-8 shadow-inner border border-indigo-500/20 relative z-10 hover:scale-110 hover:bg-indigo-500/20 transition-all duration-500 cursor-default">
-                <svg className="w-12 h-12 text-indigo-400 drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </div>
-              <h2 className="text-3xl font-black text-white mb-4 tracking-tight drop-shadow-md relative z-10">Welcome to AeroInsight</h2>
-              <p className="text-slate-400 max-w-md text-center text-sm font-medium leading-relaxed relative z-10">
-                Select a flight log from the sidebar to view its telemetry, interactive map, and Gemini-powered intelligence report.
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-500/10 blur-[150px] rounded-full pointer-events-none group-hover:bg-indigo-500/20 transition-colors duration-1000" />
+              
+              <motion.div 
+                animate={{ y: [0, -15, 0] }}
+                transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                className="w-32 h-32 bg-indigo-500/10 rounded-3xl flex items-center justify-center mb-10 shadow-[0_0_30px_rgba(99,102,241,0.2)] border border-indigo-500/30 relative z-10 backdrop-blur-md"
+              >
+                <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-3xl animate-pulse" />
+                <PlaneTakeoff size={56} className="text-indigo-400 drop-shadow-[0_0_15px_rgba(99,102,241,0.8)] relative z-10" />
+              </motion.div>
+              
+              <h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-indigo-300 mb-6 tracking-tight drop-shadow-md relative z-10 text-center">
+                AeroInsight Intelligence
+              </h2>
+              <p className="text-slate-400 max-w-lg text-center text-sm font-medium leading-relaxed relative z-10 border border-indigo-500/10 bg-[#0a0f1c]/50 p-6 rounded-2xl shadow-inner">
+                Upload a flight log via the sidebar to initiate deep telemetry analysis, interactive path mapping, and automated <strong className="text-indigo-400">Gemini AI</strong> safety evaluations.
               </p>
             </motion.div>
           )}

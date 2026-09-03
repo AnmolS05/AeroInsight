@@ -25,5 +25,8 @@
   "lint-staged": {
     "**/*": "prettier --write --ignore-unknown",
     "*.{js,jsx,ts,tsx}": "eslint --fix"
+  },
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1"
   }
 }
