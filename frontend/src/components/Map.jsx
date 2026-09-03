@@ -148,10 +148,10 @@ export default function Map({ telemetryData }) {
 
         {/* End Marker */}
         {positions.length > 1 && (
-          <CircleMarker
+          <CircleMarker 
             center={positions[positions.length - 1]}
             radius={5}
-            pathOptions={{ color: '#6366f1', fillColor: '#0a0f1c', fillOpacity: 1, weight: 3 }}
+            pathOptions={{ color: '#6366f1', fillColor: '#6366f1', fillOpacity: 1, weight: 2 }}
           >
             <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(99,102,241,0.2)]">
               <div className="p-2">
@@ -166,7 +166,6 @@ export default function Map({ telemetryData }) {
         {currentPoint && (
           <CircleMarker
             center={currentPoint}
-            radius={6}
             pathOptions={{ color: '#818cf8', fillColor: '#6366f1', fillOpacity: 1 }}
           />
         )}
