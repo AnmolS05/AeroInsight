@@ -17,7 +17,7 @@ const createIssueIcon = () => {
   return L.divIcon({
     className: 'custom-div-icon',
     html: renderToString(
-      <div className="w-8 h-8 flex items-center justify-center -ml-4 -mt-8 relative">
+      <div className="w-8 h-8 flex items-center justify-center -ml-4 -mt-8 relative hazard-glow rounded-full">
         <div className="absolute inset-0 bg-red-500 rounded-full opacity-30 animate-ping"></div>
         <div className="relative bg-red-500 rounded-full p-1 shadow-lg border-2 border-white text-white">
           <AlertTriangle size={16} />
@@ -88,7 +88,7 @@ export default function Map({ telemetryData }) {
 
   return (
     <div className="relative w-full h-full">
-      <div className="absolute top-4 right-4 z-[400] bg-[#0a0f1c]/80 backdrop-blur-md rounded-[1rem] shadow-[0_0_20px_rgba(99,102,241,0.2)] border border-indigo-500/20 p-2 flex gap-2">
+      <div className="absolute top-4 right-4 z-[400] bg-[#0a0f1c]/40 backdrop-blur-xl rounded-[1rem] shadow-[0_4px_30px_rgba(0,0,0,0.5)] border border-white/10 p-2 flex gap-2">
         <button
           onClick={() => {
             if (!isPlaying && playbackIndex >= positions.length - 1) {
@@ -96,7 +96,7 @@ export default function Map({ telemetryData }) {
             }
             setIsPlaying(!isPlaying);
           }}
-          className="p-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-xl transition-all hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] border border-transparent hover:border-indigo-500/30"
+          className="p-3 bg-white/5 hover:bg-white/10 text-indigo-400 rounded-xl transition-all hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] border border-transparent hover:border-indigo-500/30"
           title={isPlaying ? "Pause" : "Play Flight"}
         >
           {isPlaying ? <Square size={18} className="fill-indigo-400" /> : <Play size={18} className="fill-indigo-400 ml-0.5" />}
@@ -109,6 +109,15 @@ export default function Map({ telemetryData }) {
         zoomControl={false}
         className="w-full h-full z-0"
       >
+        <svg style={{ height: 0, width: 0, position: 'absolute' }}>
+          <defs>
+            <linearGradient id="path-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#10b981" />
+              <stop offset="50%" stopColor="#06b6d4" />
+              <stop offset="100%" stopColor="#6366f1" />
+            </linearGradient>
+          </defs>
+        </svg>
         <ZoomControl position="bottomright" />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -126,7 +135,7 @@ export default function Map({ telemetryData }) {
         />
         <Polyline
           positions={currentPath}
-          color="#6366f1"
+          color="url(#path-gradient)"
           weight={4}
           opacity={0.8}
           lineCap="round"
@@ -140,7 +149,7 @@ export default function Map({ telemetryData }) {
           <CircleMarker
             center={positions[0]}
             radius={5}
-            pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 1, weight: 2 }}
+            pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 1, weight: 2, className: 'node-ripple-green' }}
           >
             <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(16,185,129,0.2)]">
               <div className="p-2">
@@ -156,7 +165,7 @@ export default function Map({ telemetryData }) {
           <CircleMarker 
             center={positions[positions.length - 1]}
             radius={5}
-            pathOptions={{ color: '#6366f1', fillColor: '#6366f1', fillOpacity: 1, weight: 2 }}
+            pathOptions={{ color: '#6366f1', fillColor: '#6366f1', fillOpacity: 1, weight: 2, className: 'node-ripple-blue' }}
           >
             <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(99,102,241,0.2)]">
               <div className="p-2">

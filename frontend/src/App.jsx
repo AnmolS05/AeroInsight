@@ -295,10 +295,17 @@ function App() {
                   className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-indigo-500/20 p-6 overflow-hidden flex flex-col h-full group hover:border-indigo-500/40 transition-all duration-500 relative"
                 >
                   <div className="absolute top-0 left-0 w-64 h-64 bg-indigo-500/10 blur-[60px] rounded-full pointer-events-none group-hover:scale-125 transition-transform duration-1000" />
+                  
+                  {/* Technical Accents */}
+                  <div className="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-indigo-500/40 pointer-events-none rounded-tl-lg"></div>
+                  <div className="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-indigo-500/40 pointer-events-none rounded-tr-lg"></div>
+                  <div className="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-indigo-500/40 pointer-events-none rounded-bl-lg"></div>
+                  <div className="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-indigo-500/40 pointer-events-none rounded-br-lg"></div>
+                  
                   <div className="flex items-center justify-between pb-4 border-b border-indigo-500/20 mb-4 relative z-10">
-                    <h2 className="text-sm font-black text-white flex items-center gap-3 tracking-widest uppercase drop-shadow-md">
+                    <h2 className="text-sm font-black font-mono text-white flex items-center gap-3 tracking-[0.2em] uppercase drop-shadow-md">
                       <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.8)]"></span>
-                      Flight Path Map
+                      FLIGHT PATH MAP
                     </h2>
                     <button 
                       onClick={() => setIsMapFullscreen(true)}
@@ -308,7 +315,7 @@ function App() {
                       <Maximize2 size={18} />
                     </button>
                   </div>
-                  <div className="flex-1 rounded-[1.5rem] overflow-hidden border border-indigo-500/10 bg-[#0a0f1c] relative z-10 shadow-inner">
+                  <div className="flex-1 rounded-[1.5rem] overflow-hidden border border-indigo-500/20 bg-[#0a0f1c] relative z-10 shadow-inner tech-grid">
                     <Map telemetryData={flightData} />
                   </div>
                 </motion.section>

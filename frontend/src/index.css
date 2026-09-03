@@ -165,3 +165,65 @@ body {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* 5. Radar Ripples for Nodes */
+.radar-ripple-green {
+  animation: ripple-green 2s infinite;
+  transform-origin: center;
+}
+
+@keyframes ripple-green {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.radar-ripple-blue {
+  animation: ripple-blue 2s infinite;
+  transform-origin: center;
+}
+
+@keyframes ripple-blue {
+  0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+}
+
+/* For leaflet circle markers, we use stroke or filter for ripples if they are SVG paths.
+   Actually, the best way for SVG circle ripples is to animate stroke-width and stroke-opacity. */
+.node-ripple-green {
+  animation: svg-ripple-green 2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+}
+
+@keyframes svg-ripple-green {
+  0% { stroke-width: 0; stroke-opacity: 1; }
+  100% { stroke-width: 20px; stroke-opacity: 0; }
+}
+
+.node-ripple-blue {
+  animation: svg-ripple-blue 2s cubic-bezier(0.1, 0.8, 0.3, 1) infinite;
+}
+
+@keyframes svg-ripple-blue {
+  0% { stroke-width: 0; stroke-opacity: 1; }
+  100% { stroke-width: 20px; stroke-opacity: 0; }
+}
+
+/* 6. Technical Grid Overlay */
+.tech-grid {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* 7. Hazard Glow */
+.hazard-glow {
+  box-shadow: 0 0 15px 5px rgba(239, 68, 68, 0.6);
+  animation: hazard-pulse 2s infinite alternate;
+}
+
+@keyframes hazard-pulse {
+  from { box-shadow: 0 0 10px 2px rgba(239, 68, 68, 0.4); }
+  to { box-shadow: 0 0 20px 8px rgba(239, 68, 68, 0.8); }
+}
