@@ -67,9 +67,6 @@ export default function Map({ telemetryData }) {
   useEffect(() => {
     let interval;
     if (isPlaying) {
-      if (playbackIndex >= positions.length - 1) {
-        setPlaybackIndex(0);
-      }
       interval = setInterval(() => {
         setPlaybackIndex((prev) => {
           if (prev >= positions.length - 1) {
@@ -81,7 +78,7 @@ export default function Map({ telemetryData }) {
       }, 500); // speed of playback
     }
     return () => clearInterval(interval);
-  }, [isPlaying, positions.length, playbackIndex]);
+  }, [isPlaying, positions.length]);
 
   if (!telemetryData || telemetryData.length === 0) return null;
 
@@ -93,7 +90,12 @@ export default function Map({ telemetryData }) {
     <div className="relative w-full h-full">
       <div className="absolute top-4 right-4 z-[400] bg-[#0a0f1c]/80 backdrop-blur-md rounded-[1rem] shadow-[0_0_20px_rgba(99,102,241,0.2)] border border-indigo-500/20 p-2 flex gap-2">
         <button
-          onClick={() => setIsPlaying(!isPlaying)}
+          onClick={() => {
+            if (!isPlaying && playbackIndex >= positions.length - 1) {
+              setPlaybackIndex(0);
+            }
+            setIsPlaying(!isPlaying);
+          }}
           className="p-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-xl transition-all hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] border border-transparent hover:border-indigo-500/30"
           title={isPlaying ? "Pause" : "Play Flight"}
         >
