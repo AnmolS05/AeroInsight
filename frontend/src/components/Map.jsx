@@ -17,7 +17,7 @@ const createIssueIcon = () => {
   return L.divIcon({
     className: 'custom-div-icon',
     html: renderToString(
-      <div className="w-8 h-8 flex items-center justify-center -ml-4 -mt-8 relative hazard-glow rounded-full">
+      <div className="w-8 h-8 flex items-center justify-center relative hazard-glow rounded-full">
         <div className="absolute inset-0 bg-red-500 rounded-full opacity-30 animate-ping"></div>
         <div className="relative bg-red-500 rounded-full p-1 shadow-lg border-2 border-white text-white">
           <AlertTriangle size={16} />

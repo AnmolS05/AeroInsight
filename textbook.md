@@ -610,6 +610,10 @@ graph TD
     G --> D
 ```
 
+**The Playback Bug (The "Unfinished Path" Problem)**
+* **The Problem:** Previously, the animated path would stop before reaching the final destination marker. There were two issues: first, the `setInterval` logic was tightly coupled to the `playbackIndex` state, causing race conditions and off-by-one errors where the interval would clear before the index reached `positions.length - 1`. Second, the visual end marker was a hollow dark-filled circle that clipped the underlying polyline, making it look like the line stopped short.
+* **The Fix:** We decoupled the `setInterval` logic by using a functional state update (`setPlaybackIndex(prev => prev + 1)`), ensuring the interval always has the latest index without depending on the closure's state. We also corrected the bounds checking so it gracefully stops exactly at the final index. Visually, we updated the End Marker to a solid, vibrant blue `CircleMarker` so the glowing path connects seamlessly to it.
+
 ```javascript
 {issues.map((point, idx) => (
   <Marker position={[point.latitude, point.longitude]} icon={issueIcon}>
