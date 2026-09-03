@@ -131,6 +131,7 @@ export default function Map({ telemetryData }) {
           opacity={0.8}
           lineCap="round"
           lineJoin="round"
+          dashArray="15, 10"
           className="glowing-path"
         />
 
