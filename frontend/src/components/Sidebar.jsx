@@ -141,7 +141,7 @@ export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess
                         onClick={() => onSelect(flight.id)}
                         className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 relative overflow-hidden ${
                           isSelected 
-                          ? 'bg-indigo-500/10 border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.2)]' 
+                          ? 'active-flight-card bg-indigo-500/10 border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.4)]' 
                           : 'bg-[#0a0f1c]/50 border-indigo-500/10 hover:border-indigo-500/30 hover:bg-indigo-500/5'
                         }`}
                       >

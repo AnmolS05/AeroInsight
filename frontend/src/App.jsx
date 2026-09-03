@@ -3,12 +3,40 @@ import Sidebar from './components/Sidebar';
 import Map from './components/Map';
 import ReportViewer from './components/ReportViewer';
 import TelemetryChart from './components/TelemetryChart';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import ReportModal from './components/ReportModal';
 import MapModal from './components/MapModal';
 import { Maximize2, X, RefreshCw, PlaneTakeoff } from 'lucide-react';
+
+function AnimatedNumber({ value, suffix = '' }) {
+  const spring = useSpring(0, { bounce: 0, duration: 2000 });
+  const display = useTransform(spring, (current) => Math.round(current) + suffix);
+  
+  useEffect(() => {
+    spring.set(value);
+  }, [spring, value]);
+  
+  return <motion.span>{display}</motion.span>;
+}
+
+function AnimatedTime({ diffS }) {
+  const spring = useSpring(0, { bounce: 0, duration: 2000 });
+  
+  const display = useTransform(spring, (current) => {
+    const s = Math.round(current);
+    if (s < 60) return `${s}s`;
+    const min = Math.floor(s / 60);
+    return `${min}m ${s % 60}s`;
+  });
+  
+  useEffect(() => {
+    spring.set(diffS);
+  }, [spring, diffS]);
+  
+  return <motion.span>{display}</motion.span>;
+}
 
 function App() {
   const [flights, setFlights] = useState([]);
@@ -151,6 +179,10 @@ function App() {
         apiUrl={API_BASE_URL}
       />
       
+      {/* Global VFX Backgrounds */}
+      <div className="radar-bg"></div>
+      <div className="radar-sweep"></div>
+
       <main className="flex-1 flex flex-col p-6 gap-6 h-full overflow-hidden relative z-10">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none" />
         
@@ -201,7 +233,12 @@ function App() {
                 className="grid grid-cols-3 gap-6 shrink-0 relative z-10"
               >
                 {/* Metric Card 1 */}
-                <div className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-blue-500/20 p-6 flex flex-col justify-center relative overflow-hidden group hover:border-blue-500/40 hover:shadow-[0_8px_30px_rgb(59,130,246,0.15)] transition-all duration-500">
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-blue-500/20 p-6 flex flex-col justify-center relative overflow-hidden group hover:border-blue-500/40 hover:shadow-[0_8px_30px_rgb(59,130,246,0.15)] transition-all duration-500"
+                >
                   <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[40px] rounded-full pointer-events-none group-hover:scale-150 transition-transform duration-1000" />
                   <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-2 mb-3 relative z-10">
                     <span className="w-1.5 h-1.5 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)]" /> Flight Duration
@@ -212,34 +249,42 @@ function App() {
                       const start = new Date(flightData[0].timestamp).getTime();
                       const end = new Date(flightData[flightData.length - 1].timestamp).getTime();
                       const diffS = Math.abs(end - start) / 1000;
-                      if (diffS < 60) return `${Math.floor(diffS)}s`;
-                      const min = Math.floor(diffS / 60);
-                      return `${min}m ${Math.floor(diffS % 60)}s`;
+                      return <AnimatedTime diffS={diffS} />;
                     })()}
                   </span>
-                </div>
+                </motion.div>
                 {/* Metric Card 2 */}
-                <div className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-indigo-500/20 p-6 flex flex-col justify-center relative overflow-hidden group hover:border-indigo-500/40 hover:shadow-[0_8px_30px_rgb(99,102,241,0.15)] transition-all duration-500">
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-indigo-500/20 p-6 flex flex-col justify-center relative overflow-hidden group hover:border-indigo-500/40 hover:shadow-[0_8px_30px_rgb(99,102,241,0.15)] transition-all duration-500"
+                >
                   <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-[40px] rounded-full pointer-events-none group-hover:scale-150 transition-transform duration-1000" />
                   <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-2 mb-3 relative z-10">
                     <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]" /> Max Altitude
                   </span>
                   <span className="text-4xl font-black text-white drop-shadow-md relative z-10 flex items-baseline">
-                    {Math.max(...flightData.map(d => d.altitude))}
+                    <AnimatedNumber value={Math.max(...flightData.map(d => d.altitude))} />
                     <span className="text-lg text-indigo-400 ml-1">m</span>
                   </span>
-                </div>
+                </motion.div>
                 {/* Metric Card 3 */}
-                <div className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-emerald-500/20 p-6 flex flex-col justify-center relative overflow-hidden group hover:border-emerald-500/40 hover:shadow-[0_8px_30px_rgb(16,185,129,0.15)] transition-all duration-500">
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-[#0b1120]/80 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-emerald-500/20 p-6 flex flex-col justify-center relative overflow-hidden group hover:border-emerald-500/40 hover:shadow-[0_8px_30px_rgb(16,185,129,0.15)] transition-all duration-500"
+                >
                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[40px] rounded-full pointer-events-none group-hover:scale-150 transition-transform duration-1000" />
                   <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-2 mb-3 relative z-10">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]" /> Final Battery
                   </span>
                   <span className="text-4xl font-black text-white drop-shadow-md relative z-10 flex items-baseline">
-                    {flightData[flightData.length - 1].battery}
+                    <AnimatedNumber value={flightData[flightData.length - 1].battery} />
                     <span className="text-lg text-emerald-400 ml-1">%</span>
                   </span>
-                </div>
+                </motion.div>
               </motion.div>
 
               <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-0 relative z-10">

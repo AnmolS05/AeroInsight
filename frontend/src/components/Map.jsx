@@ -122,6 +122,7 @@ export default function Map({ telemetryData }) {
           lineCap="round"
           lineJoin="round"
           dashArray="1, 8"
+          className="glowing-path"
         />
         <Polyline
           positions={currentPath}
@@ -130,6 +131,7 @@ export default function Map({ telemetryData }) {
           opacity={0.8}
           lineCap="round"
           lineJoin="round"
+          className="glowing-path"
         />
 
         {/* Start Marker */}
@@ -168,7 +170,7 @@ export default function Map({ telemetryData }) {
         {currentPoint && (
           <CircleMarker
             center={currentPoint}
-            pathOptions={{ color: '#818cf8', fillColor: '#6366f1', fillOpacity: 1 }}
+            pathOptions={{ color: '#818cf8', fillColor: '#6366f1', fillOpacity: 1, className: 'playhead-pulse' }}
           />
         )}
 

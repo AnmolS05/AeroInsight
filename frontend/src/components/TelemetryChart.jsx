@@ -91,6 +91,8 @@ export default function TelemetryChart({ data }) {
             fill="url(#colorAltitude)"
             strokeWidth={3} 
             activeDot={{ r: 6, fill: '#6366f1', strokeWidth: 0, shadow: '0 0 10px rgba(99,102,241,0.8)' }} 
+            isAnimationActive={true}
+            animationDuration={2000}
           />
           <Area 
             yAxisId="right"
@@ -101,6 +103,8 @@ export default function TelemetryChart({ data }) {
             fill="url(#colorBattery)"
             strokeWidth={3} 
             activeDot={{ r: 6, fill: '#10b981', strokeWidth: 0, shadow: '0 0 10px rgba(16,185,129,0.8)' }}
+            isAnimationActive={true}
+            animationDuration={2000}
           />
         </AreaChart>
       </ResponsiveContainer>
