@@ -163,7 +163,7 @@ export default function Map({ telemetryData }) {
       )}
 
       {/* Current Position Marker (Playback) */}
-      {currentPoint && isPlaying && (
+      {currentPoint && (
         <CircleMarker 
           center={currentPoint}
           radius={6}
