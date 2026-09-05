@@ -1,45 +1,76 @@
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+/**
+ * @file MapModal.jsx
+ * @description Apple-inspired clean fullscreen modal for inspecting high-resolution flight trajectory maps.
+ */
+
+import React, { useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import Map from './Map';
 
+/**
+ * Fullscreen modal wrapper for the flight path map.
+ *
+ * @param {Object} props - Component properties.
+ * @param {boolean} props.isOpen - Whether modal is visible.
+ * @param {Function} props.onClose - Modal close handler.
+ * @param {Array<Object>} props.telemetryData - Flight telemetry data array.
+ * @returns {React.ReactElement|null} The rendered modal or null.
+ */
 function MapModal({ isOpen, onClose, telemetryData }) {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[9999] bg-[#0a0f1c]/90 backdrop-blur-xl flex items-center justify-center p-4 sm:p-8"
-    >
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-[#0b1120] rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-indigo-500/30 w-full max-w-6xl h-full max-h-full flex flex-col overflow-hidden relative"
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 select-none" role="dialog" aria-modal="true" aria-label="Fullscreen map">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-black/80 backdrop-blur-md"
+        aria-hidden="true"
+      />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.98, y: 8 }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        className="relative w-full max-w-6xl h-[85vh] bg-[#111113] border border-white/[0.12] rounded-2xl shadow-2xl flex flex-col overflow-hidden z-10"
       >
-        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
-        
-        <div className="p-6 border-b border-indigo-500/20 flex items-center justify-between bg-[#0a0f1c]/50 relative z-10">
-          <h2 className="text-lg font-black text-white flex items-center gap-3 tracking-widest uppercase drop-shadow-md">
-            <span className="w-3 h-3 rounded-full bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.8)] animate-pulse"></span>
-            Flight Path Map
-          </h2>
-          <button 
+        {/* Modal Header */}
+        <div className="px-6 py-4 border-b border-white/[0.08] flex items-center justify-between bg-[#141417]">
+          <div>
+            <h2 className="text-sm font-semibold text-white tracking-tight">Full Trajectory Map</h2>
+            <p className="text-[11px] text-neutral-400 mt-0.5">High-precision geospatial playback and waypoint inspection</p>
+          </div>
+          <button
             onClick={onClose}
-            className="p-3 text-slate-400 hover:text-white bg-indigo-500/10 hover:bg-indigo-500/30 border border-indigo-500/20 rounded-xl transition-all duration-300"
+            className="w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-neutral-300 hover:text-white flex items-center justify-center transition-colors"
+            aria-label="Close modal"
           >
-            <X size={20} className="stroke-[2.5]" />
+            <X size={16} />
           </button>
         </div>
-        <div className="p-4 flex-1 relative z-10">
-          <div className="w-full h-full rounded-[1.5rem] overflow-hidden border border-indigo-500/20">
+
+        {/* Modal Body */}
+        <div className="flex-1 p-4 bg-[#0a0a0c]">
+          <div className="w-full h-full rounded-xl overflow-hidden border border-white/[0.08]">
             <Map telemetryData={telemetryData} />
           </div>
         </div>
       </motion.div>
-    </motion.div>
+    </div>
   );
 }
 

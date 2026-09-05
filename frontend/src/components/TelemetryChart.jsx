@@ -1,3 +1,8 @@
+/**
+ * @file TelemetryChart.jsx
+ * @description Apple-inspired minimalist time-series telemetry chart displaying altitude and battery profiles.
+ */
+
 import React from 'react';
 import {
   AreaChart,
@@ -9,34 +14,61 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
-import { Activity, Battery } from 'lucide-react';
+import { ArrowUpRight, BatteryCharging } from 'lucide-react';
 
+/**
+ * Custom tooltip component rendered on chart hover with Apple-grade typography and frosted surface.
+ *
+ * @param {Object} props - Tooltip component properties.
+ * @param {boolean} props.active - Whether the tooltip is currently active.
+ * @param {Array<Object>} props.payload - Array of hovered data point entries.
+ * @param {string} props.label - Hovered timestamp string.
+ * @returns {React.ReactElement|null} Tooltip UI or null if inactive.
+ */
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-[#0b1120]/90 backdrop-blur-xl border border-indigo-500/30 p-4 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] min-w-[200px]">
-        <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-indigo-500/20 pb-2">{label}</p>
-        {payload.map((entry, index) => (
-          <div key={index} className="flex items-center justify-between py-1.5">
-            <span className="flex items-center gap-2 text-sm font-bold text-slate-200">
-              {entry.name === 'Altitude' ? <Activity size={14} className="text-indigo-400" /> : <Battery size={14} className="text-emerald-400" />}
-              {entry.name}
-            </span>
-            <span className="font-mono font-black" style={{ color: entry.color }}>
-              {entry.value} {entry.name === 'Altitude' ? 'm' : '%'}
-            </span>
-          </div>
-        ))}
+      <div className="bg-[#18181b]/95 backdrop-blur-md border border-white/[0.12] p-3 rounded-xl shadow-xl min-w-[170px] text-xs">
+        <p className="text-[11px] font-medium text-neutral-400 mb-2 border-b border-white/[0.08] pb-1.5">
+          {label}
+        </p>
+        <div className="flex flex-col gap-1.5">
+          {payload.map((entry, index) => {
+            const isAlt = entry.name === 'Altitude';
+            return (
+              <div key={index} className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-neutral-300">
+                  {isAlt ? (
+                    <span className="w-2 h-2 rounded-full bg-[#2997ff]" />
+                  ) : (
+                    <span className="w-2 h-2 rounded-full bg-[#30d158]" />
+                  )}
+                  {entry.name}
+                </span>
+                <span className="font-semibold text-white">
+                  {entry.value} {isAlt ? 'm' : '%'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
   return null;
 };
 
+/**
+ * Main telemetry time-series chart component.
+ *
+ * @param {Object} props - Component properties.
+ * @param {Array<Object>} props.data - Raw telemetry records array.
+ * @returns {React.ReactElement|null} The rendered chart or null if data is absent.
+ */
 export default function TelemetryChart({ data }) {
   if (!data || data.length === 0) return null;
 
-  // Format data for chart
+  // Format data for chart display
   const chartData = data.map(d => ({
     time: new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     Altitude: d.altitude,
@@ -44,67 +76,84 @@ export default function TelemetryChart({ data }) {
   }));
 
   return (
-    <div className="w-full h-full min-h-[250px]">
+    <div className="w-full h-full min-h-[220px]">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+        <AreaChart data={chartData} margin={{ top: 8, right: 10, left: -20, bottom: 0 }}>
           <defs>
-            <linearGradient id="colorAltitude" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#6366f1" stopOpacity={0.6}/>
-              <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+            <linearGradient id="appleAltGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2997ff" stopOpacity={0.25} />
+              <stop offset="100%" stopColor="#2997ff" stopOpacity={0.0} />
             </linearGradient>
-            <linearGradient id="colorBattery" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#10b981" stopOpacity={0.6}/>
-              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+            <linearGradient id="appleBatteryGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#30d158" stopOpacity={0.2} />
+              <stop offset="100%" stopColor="#30d158" stopOpacity={0.0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" opacity={0.5} />
-          <XAxis 
-            dataKey="time" 
-            tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} 
-            axisLine={{ stroke: '#1e293b' }}
-            tickLine={false}
-            tickMargin={10}
+
+          <CartesianGrid
+            strokeDasharray="3 3"
+            vertical={false}
+            stroke="rgba(255, 255, 255, 0.05)"
           />
-          <YAxis 
-            yAxisId="left" 
-            tick={{ fontSize: 10, fill: '#6366f1', fontWeight: 600 }}
-            axisLine={{ stroke: '#1e293b' }}
+
+          <XAxis
+            dataKey="time"
+            tick={{ fontSize: 11, fill: '#86868b' }}
+            axisLine={{ stroke: 'rgba(255, 255, 255, 0.08)' }}
             tickLine={false}
-            tickMargin={10}
+            tickMargin={8}
           />
-          <YAxis 
-            yAxisId="right" 
-            orientation="right" 
-            tick={{ fontSize: 10, fill: '#10b981', fontWeight: 600 }}
-            axisLine={{ stroke: '#1e293b' }}
-            tickLine={false}
-            tickMargin={10}
-          />
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(99,102,241,0.2)', strokeWidth: 2 }} />
-          <Legend wrapperStyle={{ paddingTop: '15px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8' }} />
-          <Area 
+
+          <YAxis
             yAxisId="left"
-            type="monotone" 
-            dataKey="Altitude" 
-            stroke="#6366f1"
-            fillOpacity={1}
-            fill="url(#colorAltitude)"
-            strokeWidth={3} 
-            activeDot={{ r: 6, fill: '#6366f1', strokeWidth: 0, shadow: '0 0 10px rgba(99,102,241,0.8)' }} 
-            isAnimationActive={true}
-            animationDuration={2000}
+            tick={{ fontSize: 11, fill: '#2997ff' }}
+            axisLine={false}
+            tickLine={false}
+            tickMargin={8}
           />
-          <Area 
+
+          <YAxis
             yAxisId="right"
-            type="monotone" 
-            dataKey="Battery" 
-            stroke="#10b981"
-            fillOpacity={1}
-            fill="url(#colorBattery)"
-            strokeWidth={3} 
-            activeDot={{ r: 6, fill: '#10b981', strokeWidth: 0, shadow: '0 0 10px rgba(16,185,129,0.8)' }}
+            orientation="right"
+            tick={{ fontSize: 11, fill: '#30d158' }}
+            axisLine={false}
+            tickLine={false}
+            tickMargin={8}
+          />
+
+          <Tooltip content={<CustomTooltip />} />
+
+          <Legend
+            wrapperStyle={{
+              paddingTop: '8px',
+              fontSize: '11px',
+              fontWeight: 500,
+              color: '#86868b'
+            }}
+          />
+
+          <Area
+            yAxisId="left"
+            type="monotone"
+            dataKey="Altitude"
+            stroke="#2997ff"
+            strokeWidth={2}
+            fill="url(#appleAltGradient)"
+            activeDot={{ r: 4, fill: '#2997ff', stroke: '#ffffff', strokeWidth: 1.5 }}
             isAnimationActive={true}
-            animationDuration={2000}
+            animationDuration={800}
+          />
+
+          <Area
+            yAxisId="right"
+            type="monotone"
+            dataKey="Battery"
+            stroke="#30d158"
+            strokeWidth={2}
+            fill="url(#appleBatteryGradient)"
+            activeDot={{ r: 4, fill: '#30d158', stroke: '#ffffff', strokeWidth: 1.5 }}
+            isAnimationActive={true}
+            animationDuration={800}
           />
         </AreaChart>
       </ResponsiveContainer>

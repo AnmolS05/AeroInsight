@@ -1,43 +1,73 @@
+/**
+ * @file ReportViewer.jsx
+ * @description Apple Documentation-inspired markdown report viewer for autonomous flight intelligence briefs.
+ */
+
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Info, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Info, AlertCircle, CheckCircle2, ChevronRight } from 'lucide-react';
 
+/**
+ * ReportViewer component renders formatted AI mission summaries and telemetry evaluations.
+ *
+ * @param {Object} props - Component properties.
+ * @param {string} props.markdown - Raw markdown text of the evaluation report.
+ * @returns {React.ReactElement} The rendered Markdown viewer.
+ */
 export default function ReportViewer({ markdown }) {
   const components = {
-    h1: ({node, ...props}) => <h1 className="text-2xl font-black text-white mt-8 mb-4 border-b border-indigo-500/20 pb-2 flex items-center gap-3" {...props}><span className="w-3 h-3 bg-indigo-500 rounded-sm rotate-45 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></span>{props.children}</h1>,
-    h2: ({node, ...props}) => <h2 className="text-xl font-black text-indigo-200 mt-6 mb-3 flex items-center gap-2 before:content-[''] before:w-1.5 before:h-4 before:bg-indigo-500 before:rounded-full before:mr-1" {...props} />,
-    h3: ({node, ...props}) => <h3 className="text-lg font-bold text-slate-200 mt-4 mb-2 text-indigo-300" {...props} />,
-    blockquote: ({node, ...props}) => (
-      <blockquote className="bg-[#0b1120]/50 border-l-4 border-purple-500 p-4 rounded-r-xl my-4 flex gap-3 text-slate-300 italic shadow-inner" {...props}>
-        <Info size={20} className="text-purple-400 shrink-0 mt-0.5" />
-        <div>{props.children}</div>
+    h1: ({ node, ...props }) => (
+      <h1 className="text-lg font-semibold text-white mt-4 mb-3 border-b border-white/[0.08] pb-2 tracking-tight" {...props}>
+        {props.children}
+      </h1>
+    ),
+    h2: ({ node, ...props }) => (
+      <h2 className="text-sm font-semibold text-neutral-200 mt-4 mb-2 tracking-tight" {...props} />
+    ),
+    h3: ({ node, ...props }) => (
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mt-3 mb-1.5" {...props} />
+    ),
+    h4: ({ node, ...props }) => (
+      <h4 className="text-xs font-medium text-neutral-300 mt-3 mb-1" {...props} />
+    ),
+    p: ({ node, ...props }) => (
+      <p className="text-xs text-neutral-400 leading-relaxed my-2" {...props} />
+    ),
+    blockquote: ({ node, ...props }) => (
+      <blockquote className="bg-white/[0.03] border-l-2 border-[#2997ff] p-3 rounded-r-xl my-3 flex gap-2.5 text-xs text-neutral-300" {...props}>
+        <Info size={16} className="text-[#2997ff] shrink-0 mt-0.5" />
+        <div className="flex-1">{props.children}</div>
       </blockquote>
     ),
-    ul: ({node, ...props}) => <ul className="space-y-2 my-4" {...props} />,
-    li: ({node, ...props}) => (
-      <li className="flex items-start gap-2 text-slate-400 font-medium" {...props}>
-        <ChevronRight size={16} className="text-indigo-500 shrink-0 mt-1" />
+    ul: ({ node, ...props }) => <ul className="space-y-1.5 my-2.5 pl-1" {...props} />,
+    ol: ({ node, ...props }) => <ol className="list-decimal space-y-1.5 my-2.5 pl-4 text-xs text-neutral-400" {...props} />,
+    li: ({ node, ...props }) => (
+      <li className="flex items-start gap-2 text-xs text-neutral-300 leading-relaxed" {...props}>
+        <span className="w-1.5 h-1.5 rounded-full bg-neutral-500 shrink-0 mt-1.5" />
         <span>{props.children}</span>
       </li>
     ),
-    table: ({node, ...props}) => (
-      <div className="overflow-x-auto my-6 rounded-xl border border-indigo-500/20 shadow-inner">
-        <table className="min-w-full text-sm text-left border-collapse" {...props} />
+    table: ({ node, ...props }) => (
+      <div className="overflow-x-auto my-3 rounded-xl border border-white/[0.08]">
+        <table className="min-w-full text-xs text-left border-collapse" {...props} />
       </div>
     ),
-    thead: ({node, ...props}) => <thead className="bg-[#0b1120] text-indigo-300 uppercase font-black text-xs tracking-widest border-b border-indigo-500/20" {...props} />,
-    th: ({node, ...props}) => <th className="px-4 py-3" {...props} />,
-    td: ({node, ...props}) => <td className="px-4 py-3 border-b border-indigo-500/10 text-slate-300 bg-[#0a0f1c]/50" {...props} />,
+    thead: ({ node, ...props }) => (
+      <thead className="bg-white/[0.04] text-neutral-400 uppercase font-medium text-[10px] tracking-wider border-b border-white/[0.08]" {...props} />
+    ),
+    th: ({ node, ...props }) => <th className="px-3.5 py-2.5 font-medium" {...props} />,
+    td: ({ node, ...props }) => (
+      <td className="px-3.5 py-2.5 border-b border-white/[0.04] text-neutral-300 bg-transparent" {...props} />
+    ),
+    strong: ({ node, ...props }) => <strong className="font-semibold text-white" {...props} />,
+    code: ({ node, inline, ...props }) => (
+      <code className="bg-white/[0.06] text-neutral-200 px-1.5 py-0.5 rounded text-[11px] font-mono" {...props} />
+    ),
+    hr: ({ node, ...props }) => <hr className="border-t border-white/[0.06] my-4" {...props} />
   };
 
   return (
-    <div className="prose prose-sm sm:prose-base max-w-none 
-                    prose-p:text-slate-400 prose-p:font-medium prose-p:leading-relaxed
-                    prose-strong:text-purple-400 prose-strong:font-black
-                    prose-a:text-indigo-400 prose-a:font-bold hover:prose-a:text-indigo-300
-                    prose-code:bg-[#0a0f1c] prose-code:text-indigo-300 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:before:content-none prose-code:after:content-none
-                    prose-pre:bg-[#0a0f1c] prose-pre:border prose-pre:border-indigo-500/20 prose-pre:shadow-inner prose-pre:p-4
-                    bg-transparent p-2">
+    <div className="text-xs text-neutral-300 select-text">
       <ReactMarkdown components={components}>{markdown}</ReactMarkdown>
     </div>
   );

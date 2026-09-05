@@ -14,7 +14,18 @@
 
 <br />
 
-**AeroInsight** is an enterprise-grade web application designed for the ingestion, visualization, and intelligent analysis of drone telemetry data. Featuring a **Deep Dark Glassmorphic UI**, a robust Node.js/Express backend with global error handling, and a dual-pipeline AI architecture, AeroInsight empowers drone operators to instantly assess flight risks and anomalies.
+**AeroInsight** is an enterprise-grade autonomous flight intelligence platform designed for the ingestion, visualization, and safety analysis of drone telemetry data. 
+
+Engineered with a **minimal, Apple-inspired aesthetic**, an ultra-responsive Node.js/Express backend with ACID PostgreSQL persistence, interactive Leaflet CartoDB geospatial mapping, and a dual-pipeline AI architecture (Google Gemini GenAI + Random Forest offline inference), AeroInsight empowers drone operators to instantly assess mission anomalies and airframe reliability.
+
+---
+
+## 🌟 What's New in v1.1.0 ("Apple Intelligence" Redesign & Brand Launch)
+
+* **Refined Apple-Inspired Design System:** Overhauled the interface with matte obsidian surfaces, subtle 1px translucent borders (`border-white/[0.08]`), refined typography, and smooth interactive physics (hover elevation, fluid transitions, and reduced visual noise).
+* **Official AeroInsight Brand Identity:** Introduced the brushed titanium delta-wing emblem with concentric cyan telemetry radar wave arcs, integrated across browser favicons, navigation sidebar, and the landing hero.
+* **Interactive Mission Control:** Added built-in sample missions (`Bengaluru Urban Survey`, `Bay Area Coastal Patrol`), client-side flight log fallback parser (`.csv` / `.json`), real-time search filtering, and natural language AI Flight Assistant querying.
+* **Geospatial & Telemetry Enhancements:** Fullscreen modal path view, animated waypoint scrubbing, dynamic battery vs. altitude profile analytics via Recharts, and CartoDB Dark Matter mapping.
 
 ---
 
@@ -24,16 +35,16 @@
 * **Generative Analysis (Google Gemini API):** Evaluates flight paths contextually, identifying hazards, environmental anomalies, and generating human-readable maintenance recommendations.
 * **Deterministic ML Scoring (Custom Random Forest):** A proprietary, offline machine learning model that analyzes raw telemetry metrics (battery drain curves, duration, altitude volatility) to output a deterministic risk classification (High/Low Risk).
 
-### 2. Deep Dark UI / UX 🎨
-* **Glassmorphic Design System:** Built with Tailwind CSS, utilizing `backdrop-blur`, semi-transparent indigo overlays, custom Webkit scrollbars, and dynamic micro-animations.
-* **Geospatial Mapping:** Interactive flight path visualization via Leaflet.js with CartoDB Dark Matter tiles and custom glowing markers.
-* **Real-time Telemetry Analytics:** High-performance charting via Recharts utilizing SVG AreaChart gradients.
+### 2. Apple Pro Design System & Visualization 🎨
+* **Minimalist Matte Architecture:** High-contrast, accessibility-conscious UI inspired by Apple design language—eliminating neon clutters in favor of restrained translucency and smooth micro-animations.
+* **Geospatial Mapping:** Interactive flight path visualization via Leaflet.js with CartoDB Dark Matter tiles, waypoint markers, and fullscreen inspection modals.
+* **Real-time Telemetry Analytics:** High-performance charting via Recharts utilizing SVG AreaChart gradients for altitude ceilings and battery depletion.
 
 ### 3. Clean Backend Architecture 🏗️
 * **Express Pipeline:** Structured with strict MVC patterns (Controllers, Services, Routes).
 * **Global Error Handling:** Standardized error responses through centralized middleware (including Zod validation), avoiding fragile try-catch nesting.
 * **Observability:** HTTP request logging integrated via `morgan` for robust debugging.
-* **SQLite/PostgreSQL Storage:** Reliable relational storage for flight metadata and AI reports.
+* **PostgreSQL / SQLite Storage:** Reliable relational storage with transaction safety for flight metadata and AI reports.
 
 ---
 

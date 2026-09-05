@@ -1,10 +1,15 @@
+/**
+ * @file Map.jsx
+ * @description Apple Maps-inspired flight path visualizer with playback simulation and anomaly inspection.
+ */
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, CircleMarker, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
-import { AlertTriangle, Info, Play, Square } from 'lucide-react';
+import { AlertCircle, Play, Pause, RotateCcw } from 'lucide-react';
 import { renderToString } from 'react-dom/server';
 
-// Fix for default marker icon issues in Leaflet with bundlers
+// Fix default leaflet marker asset paths for bundlers
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -12,57 +17,70 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-// Custom red marker for issues
+/**
+ * Generates an accessible, minimal Apple-style anomaly marker icon.
+ *
+ * @returns {L.DivIcon} Leaflet DivIcon instance.
+ */
 const createIssueIcon = () => {
   return L.divIcon({
-    className: 'custom-div-icon',
+    className: 'apple-map-marker',
     html: renderToString(
-      <div className="w-8 h-8 flex items-center justify-center relative hazard-glow rounded-full">
-        <div className="absolute inset-0 bg-red-500 rounded-full opacity-30 animate-ping"></div>
-        <div className="relative bg-red-500 rounded-full p-1 shadow-lg border-2 border-white text-white">
-          <AlertTriangle size={16} />
-        </div>
-        <div className="absolute bottom-[-6px] left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-red-500"></div>
+      <div className="w-6 h-6 rounded-full bg-[#ff453a] text-white flex items-center justify-center shadow-lg border border-white/40">
+        <AlertCircle size={14} className="stroke-[2.5]" />
       </div>
     ),
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
-    popupAnchor: [0, -32]
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -14]
   });
 };
 
 const issueIcon = createIssueIcon();
 
-// Component to dynamically adjust map bounds
+/**
+ * Helper hook component to automatically fit the map viewport to all telemetry points.
+ *
+ * @param {Object} props - Component properties.
+ * @param {Array<Array<number>>} props.positions - List of [lat, lng] coordinates.
+ * @returns {null} Renders no direct DOM.
+ */
 function MapBounds({ positions }) {
   const map = useMap();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (positions && positions.length > 0) {
       const bounds = L.latLngBounds(positions);
-      map.fitBounds(bounds, { padding: [50, 50] });
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
     }
   }, [map, positions]);
 
   return null;
 }
 
+/**
+ * Main Flight Trajectory Map component.
+ *
+ * @param {Object} props - Component properties.
+ * @param {Array<Object>} props.telemetryData - Telemetry data points.
+ * @returns {React.ReactElement|null} Rendered map or null if data is empty.
+ */
 export default function Map({ telemetryData }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackIndex, setPlaybackIndex] = useState(0);
 
   const positions = useMemo(() => {
-    return telemetryData.map(d => [d.latitude, d.longitude]);
+    return (telemetryData || []).map(d => [d.latitude, d.longitude]);
   }, [telemetryData]);
 
   const issues = useMemo(() => {
-    return telemetryData.filter(d => d.issue && d.issue.toLowerCase() !== 'none');
+    return (telemetryData || []).filter(d => d.issue && d.issue.toLowerCase() !== 'none');
   }, [telemetryData]);
 
   useEffect(() => {
-    setPlaybackIndex(positions.length - 1);
+    setPlaybackIndex(positions.length > 0 ? positions.length - 1 : 0);
     setIsPlaying(false);
-  }, [telemetryData, positions.length]);
+  }, [positions.length]);
 
   useEffect(() => {
     let interval;
@@ -75,20 +93,21 @@ export default function Map({ telemetryData }) {
           }
           return prev + 1;
         });
-      }, 500); // speed of playback
+      }, 400);
     }
     return () => clearInterval(interval);
   }, [isPlaying, positions.length]);
 
   if (!telemetryData || telemetryData.length === 0) return null;
 
-  const center = positions[0];
+  const center = positions[0] || [0, 0];
   const currentPath = positions.slice(0, playbackIndex + 1);
   const currentPoint = positions[playbackIndex];
 
   return (
-    <div className="relative w-full h-full">
-      <div className="absolute top-4 right-4 z-[400] bg-[#0a0f1c]/40 backdrop-blur-xl rounded-[1rem] shadow-[0_4px_30px_rgba(0,0,0,0.5)] border border-white/10 p-2 flex gap-2">
+    <div className="relative w-full h-full select-none overflow-hidden rounded-2xl">
+      {/* Floating Minimal Playback Controls */}
+      <div className="absolute top-3 right-3 z-[400] bg-[#18181b]/90 backdrop-blur-md border border-white/[0.12] rounded-full px-3 py-1.5 flex items-center gap-2 shadow-lg text-xs">
         <button
           onClick={() => {
             if (!isPlaying && playbackIndex >= positions.length - 1) {
@@ -96,111 +115,129 @@ export default function Map({ telemetryData }) {
             }
             setIsPlaying(!isPlaying);
           }}
-          className="p-3 bg-white/5 hover:bg-white/10 text-indigo-400 rounded-xl transition-all hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] border border-transparent hover:border-indigo-500/30"
-          title={isPlaying ? "Pause" : "Play Flight"}
+          className="w-7 h-7 rounded-full bg-white text-black hover:bg-neutral-200 active:scale-95 flex items-center justify-center transition-all"
+          title={isPlaying ? "Pause replay" : "Play trajectory"}
+          aria-label={isPlaying ? "Pause replay" : "Play trajectory"}
         >
-          {isPlaying ? <Square size={18} className="fill-indigo-400" /> : <Play size={18} className="fill-indigo-400 ml-0.5" />}
+          {isPlaying ? <Pause size={12} className="fill-black" /> : <Play size={12} className="fill-black ml-0.5" />}
         </button>
+
+        <button
+          onClick={() => {
+            setIsPlaying(false);
+            setPlaybackIndex(positions.length - 1);
+          }}
+          className="w-7 h-7 rounded-full bg-white/[0.08] hover:bg-white/[0.15] text-neutral-300 flex items-center justify-center transition-all"
+          title="Reset to end"
+          aria-label="Reset replay"
+        >
+          <RotateCcw size={12} />
+        </button>
+
+        <span className="text-[11px] font-medium text-neutral-400 tabular-nums px-1">
+          {playbackIndex + 1} / {positions.length}
+        </span>
       </div>
+
       <MapContainer
         center={center}
-        zoom={13}
+        zoom={14}
         scrollWheelZoom={true}
         zoomControl={false}
         className="w-full h-full z-0"
       >
-        <svg style={{ height: 0, width: 0, position: 'absolute' }}>
-          <defs>
-            <linearGradient id="path-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#10b981" />
-              <stop offset="50%" stopColor="#06b6d4" />
-              <stop offset="100%" stopColor="#6366f1" />
-            </linearGradient>
-          </defs>
-        </svg>
         <ZoomControl position="bottomright" />
+        
+        {/* CARTO Dark Tile Layer with minimal contrast */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url={`https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${import.meta.env.VITE_CARTO_API_KEY}`}
-        />
-        <Polyline
-          positions={positions}
-          color="#1e293b"
-          weight={4}
-          opacity={0.5}
-          lineCap="round"
-          lineJoin="round"
-          dashArray="1, 8"
-          className="glowing-path"
-        />
-        <Polyline
-          positions={currentPath}
-          color="url(#path-gradient)"
-          weight={4}
-          opacity={0.8}
-          lineCap="round"
-          lineJoin="round"
-          dashArray="15, 10"
-          className="glowing-path"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url={import.meta.env.VITE_CARTO_API_KEY ? `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${import.meta.env.VITE_CARTO_API_KEY}` : "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"}
+          subdomains="abcd"
+          maxZoom={19}
         />
 
-        {/* Start Marker */}
+        {/* Full planned path baseline */}
+        <Polyline
+          positions={positions}
+          color="rgba(255, 255, 255, 0.15)"
+          weight={3}
+          lineCap="round"
+          lineJoin="round"
+          dashArray="4, 6"
+        />
+
+        {/* Current active flight path */}
+        <Polyline
+          positions={currentPath}
+          color="#2997ff"
+          weight={3.5}
+          opacity={0.95}
+          lineCap="round"
+          lineJoin="round"
+        />
+
+        {/* Takeoff Location Marker */}
         {positions.length > 0 && (
           <CircleMarker
             center={positions[0]}
             radius={5}
-            pathOptions={{ color: '#10b981', fillColor: '#10b981', fillOpacity: 1, weight: 2, className: 'node-ripple-green' }}
+            pathOptions={{ color: '#ffffff', fillColor: '#30d158', fillOpacity: 1, weight: 1.5 }}
           >
-            <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(16,185,129,0.2)]">
-              <div className="p-2">
-                <h4 className="font-black text-emerald-500 text-xs mb-1 uppercase tracking-widest">Takeoff Location</h4>
-                <p className="text-slate-200 text-xs font-mono">{positions[0][0].toFixed(5)}, {positions[0][1].toFixed(5)}</p>
+            <Popup className="apple-popup">
+              <div className="p-1 text-xs">
+                <p className="font-semibold text-[#30d158] uppercase tracking-wider text-[10px]">Takeoff Point</p>
+                <p className="text-neutral-300 font-mono text-[11px] mt-0.5">
+                  {positions[0][0].toFixed(5)}, {positions[0][1].toFixed(5)}
+                </p>
               </div>
             </Popup>
           </CircleMarker>
         )}
 
-        {/* End Marker */}
+        {/* Landing / Target Location Marker */}
         {positions.length > 1 && (
-          <CircleMarker 
+          <CircleMarker
             center={positions[positions.length - 1]}
             radius={5}
-            pathOptions={{ color: '#6366f1', fillColor: '#6366f1', fillOpacity: 1, weight: 2, className: 'node-ripple-blue' }}
+            pathOptions={{ color: '#ffffff', fillColor: '#2997ff', fillOpacity: 1, weight: 1.5 }}
           >
-            <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-              <div className="p-2">
-                <h4 className="font-black text-indigo-500 text-xs mb-1 uppercase tracking-widest">Landing Location</h4>
-                <p className="text-slate-200 text-xs font-mono">{positions[positions.length - 1][0].toFixed(5)}, {positions[positions.length - 1][1].toFixed(5)}</p>
+            <Popup className="apple-popup">
+              <div className="p-1 text-xs">
+                <p className="font-semibold text-[#2997ff] uppercase tracking-wider text-[10px]">Landing Point</p>
+                <p className="text-neutral-300 font-mono text-[11px] mt-0.5">
+                  {positions[positions.length - 1][0].toFixed(5)}, {positions[positions.length - 1][1].toFixed(5)}
+                </p>
               </div>
             </Popup>
           </CircleMarker>
         )}
 
-        {/* Current Position Marker (Playback) */}
+        {/* Live Playhead Marker */}
         {currentPoint && (
           <CircleMarker
             center={currentPoint}
-            pathOptions={{ color: '#818cf8', fillColor: '#6366f1', fillOpacity: 1, className: 'playhead-pulse' }}
+            radius={6}
+            pathOptions={{ color: '#ffffff', fillColor: '#2997ff', fillOpacity: 1, weight: 2 }}
           />
         )}
 
-        {/* Render Issue Markers */}
+        {/* Anomaly / Issue Flag Markers */}
         {issues.map((point, idx) => (
           <Marker
             key={`issue-${idx}`}
             position={[point.latitude, point.longitude]}
             icon={issueIcon}
           >
-            <Popup className="rounded-[1rem] shadow-[0_0_20px_rgba(239,68,68,0.2)]">
-              <div className="p-2">
-                <h4 className="font-black text-rose-500 flex items-center gap-2 text-xs mb-2 uppercase tracking-widest drop-shadow-md">
-                  <AlertTriangle size={14} /> Anomaly Detected
-                </h4>
-                <p className="text-slate-200 text-sm mb-3 font-medium">{point.issue}</p>
-                <div className="bg-[#0a0f1c] p-3 rounded-xl border border-rose-500/20 text-xs text-slate-400 font-mono flex flex-col gap-1">
-                  <div><span className="text-slate-500">ALT:</span> {point.altitude}m</div>
-                  <div><span className="text-slate-500">BATT:</span> {point.battery}%</div>
-                  <div><span className="text-slate-500">TIME:</span> {new Date(point.timestamp).toLocaleTimeString()}</div>
+            <Popup className="apple-popup">
+              <div className="p-2 min-w-[190px] text-xs">
+                <div className="flex items-center gap-1.5 font-semibold text-[#ff453a] mb-1">
+                  <AlertCircle size={14} /> Anomaly Flagged
+                </div>
+                <p className="text-neutral-200 font-medium leading-snug mb-2">{point.issue}</p>
+                <div className="bg-black/40 rounded-lg p-2 text-[11px] text-neutral-400 space-y-0.5 font-mono border border-white/10">
+                  <div>ALT: {point.altitude}m</div>
+                  <div>BAT: {point.battery}%</div>
+                  <div>TIME: {new Date(point.timestamp).toLocaleTimeString()}</div>
                 </div>
               </div>
             </Popup>

@@ -1,193 +1,304 @@
+/**
+ * @file Sidebar.jsx
+ * @description Clean, restrained Apple-inspired flight log navigation sidebar.
+ * Supports file uploads, local search filtering, flight selection, and responsive mobile drawers.
+ */
+
 import React, { useRef, useState } from 'react';
-import { Upload, PlaneTakeoff, Clock, Activity, Search, Trash2, LayoutDashboard } from 'lucide-react';
+import { Upload, PlaneTakeoff, Clock, Activity, Search, Trash2, X, Compass, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseFlightLog } from '../utils/flightParser';
 
-export default function Sidebar({ flights, onSelect, selectedId, onUploadSuccess, onDelete, apiUrl }) {
+/**
+ * Sidebar component providing flight log navigation, file upload handling, and sample mission selection.
+ *
+ * @param {Object} props - Component properties.
+ * @param {Array<Object>} props.flights - List of flight records.
+ * @param {Function} props.onSelect - Callback invoked with selected flight ID.
+ * @param {string|null} props.selectedId - Currently selected flight ID.
+ * @param {Function} props.onUploadSuccess - Callback invoked after a flight log is uploaded or parsed.
+ * @param {Function} props.onDelete - Callback invoked to delete a flight log.
+ * @param {string} props.apiUrl - Base API endpoint.
+ * @param {boolean} [props.isMobileOpen=false] - Whether sidebar is open on mobile viewports.
+ * @param {Function} [props.onMobileClose] - Callback to dismiss the sidebar on mobile.
+ * @param {Function} [props.onSelectSample] - Optional callback to load sample missions directly.
+ * @returns {React.ReactElement} The rendered Sidebar component.
+ */
+export default function Sidebar({
+  flights,
+  onSelect,
+  selectedId,
+  onUploadSuccess,
+  onDelete,
+  apiUrl,
+  isMobileOpen = false,
+  onMobileClose,
+  onSelectSample
+}) {
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredFlights = flights.filter(f => f.id.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredFlights = flights.filter(f => {
+    const query = searchQuery.toLowerCase();
+    const idMatches = f.id?.toLowerCase().includes(query);
+    const nameMatches = f.name?.toLowerCase().includes(query);
+    return idMatches || nameMatches;
+  });
 
+  /**
+   * Handles user file selection and dispatches parsed JSON to the server or local state.
+   *
+   * @param {React.ChangeEvent<HTMLInputElement>} e - File input change event.
+   */
   const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
-    const toastId = toast.loading('Uploading and analyzing flight log...');
+    const toastId = toast.loading('Parsing telemetry log...');
 
     try {
       const jsonData = await parseFlightLog(file);
-      
-      const res = await fetch(`${apiUrl}/api/flights`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(jsonData)
-      });
 
-      if (!res.ok) throw new Error('Upload failed: ' + res.statusText);
-      
-      toast.success('Flight log analyzed successfully!', { id: toastId });
-      onUploadSuccess();
+      // Attempt server sync
+      try {
+        const res = await fetch(`${apiUrl}/api/flights`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(jsonData)
+        });
+
+        if (res.ok) {
+          toast.success('Flight log uploaded & analyzed', { id: toastId });
+          onUploadSuccess();
+          if (onMobileClose) onMobileClose();
+          return;
+        }
+      } catch (networkErr) {
+        // Fall back gracefully to local visualization
+        console.warn('Backend server offline, loading flight locally:', networkErr);
+      }
+
+      // Local fallback handler
+      toast.success('Flight telemetry loaded locally', { id: toastId });
+      onUploadSuccess(jsonData, file.name.replace(/\.[^/.]+$/, ""));
+      if (onMobileClose) onMobileClose();
     } catch (err) {
-      toast.error('Failed to parse or upload data. Ensure it matches the required format.', { id: toastId });
-      console.error(err);
+      toast.error('Invalid flight log format. Requires CSV or JSON telemetry array.', { id: toastId });
+      console.error('File parse error:', err);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  return (
-    <aside className="w-[340px] bg-[#0b1120]/80 backdrop-blur-2xl border-r border-indigo-500/20 flex flex-col h-full shadow-[4px_0_24px_rgba(0,0,0,0.2)] z-20 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-80 h-80 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
-      
-      <div className="p-8 border-b border-indigo-500/20 bg-[#0a0f1c]/50 relative z-10 shrink-0">
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-4 mb-8"
-        >
-          <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.2)] border border-indigo-500/30 group hover:bg-indigo-500/20 transition-colors">
-            <PlaneTakeoff size={28} className="stroke-[2.5] group-hover:-translate-y-1 group-hover:translate-x-1 transition-transform" />
+  const sidebarContent = (
+    <div className="flex flex-col h-full bg-[#0a0a0c] border-r border-white/[0.08] select-none">
+      {/* Header & Logo */}
+      <div className="p-6 border-b border-white/[0.06] flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="relative group/logo">
+            <div className="absolute -inset-1 bg-[#2997ff]/20 rounded-2xl blur-sm opacity-0 group-hover/logo:opacity-100 transition-opacity duration-300" />
+            <img
+              src="/brand-emblem.png"
+              alt="AeroInsight Logo"
+              className="relative w-9 h-9 rounded-xl object-cover border border-white/[0.12] shadow-sm"
+            />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-md">AeroInsight</h1>
-            <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mt-1 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" /> Telemetry AI
-            </p>
+            <h1 className="text-base font-semibold text-white tracking-tight leading-none">AeroInsight</h1>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#30d158] animate-pulse"></span>
+              <span className="text-[11px] font-medium text-neutral-400">Flight System</span>
+            </div>
           </div>
-        </motion.div>
+        </div>
 
-        <motion.button 
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+        {/* Mobile Close Button */}
+        {onMobileClose && (
+          <button
+            onClick={onMobileClose}
+            className="lg:hidden p-2 text-neutral-400 hover:text-white rounded-lg hover:bg-white/[0.06] transition-colors"
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
+        )}
+      </div>
+
+      {/* Primary Actions */}
+      <div className="p-4 flex flex-col gap-2.5 border-b border-white/[0.06]">
+        <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className="w-full py-4 px-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-2xl flex items-center justify-center gap-3 font-black uppercase tracking-widest text-xs transition-all shadow-[0_0_25px_rgba(99,102,241,0.4)] disabled:opacity-70 group relative overflow-hidden"
+          className="apple-btn-primary w-full py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 font-medium text-xs tracking-wide shadow-sm disabled:opacity-60 group"
         >
-          <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
           {isUploading ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin relative z-10" />
+            <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
           ) : (
-            <div className="flex items-center gap-3 relative z-10">
-              <Upload size={18} className="group-hover:-translate-y-1 transition-transform" />
-              Upload Flight Log
-            </div>
+            <>
+              <Upload size={14} className="stroke-[2.5] group-hover:-translate-y-0.5 transition-transform duration-200" />
+              <span>Upload Flight Log</span>
+            </>
           )}
-        </motion.button>
-        <input 
-          type="file" 
-          accept=".json,.csv" 
-          ref={fileInputRef} 
-          className="hidden" 
-          onChange={handleFileUpload} 
+        </button>
+        <input
+          type="file"
+          accept=".json,.csv"
+          ref={fileInputRef}
+          className="hidden"
+          onChange={handleFileUpload}
+          aria-label="Upload flight telemetry file"
         />
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-6 relative z-10 flex flex-col gap-6">
+      {/* Search Input */}
+      <div className="p-4 pb-2">
         <div className="relative">
-          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400/70" />
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search logs..."
+            placeholder="Search flights..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#0a0f1c]/80 backdrop-blur-md border border-indigo-500/20 rounded-2xl pl-11 pr-4 py-3.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all font-medium shadow-inner"
+            className="w-full bg-white/[0.04] hover:bg-white/[0.06] hover:border-white/[0.14] border border-white/[0.08] focus:border-[#0071e3] focus:bg-white/[0.07] rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder:text-neutral-500 focus:outline-none transition-colors"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 text-xs"
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
         </div>
-        
-        <div>
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 px-2 flex items-center gap-2 drop-shadow-md">
-            <Clock size={14} className="text-indigo-400" />
-            Recent Logs
-          </h3>
-          
-          <div className="flex flex-col gap-3">
-            <AnimatePresence mode="popLayout">
-              {filteredFlights.length === 0 ? (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="text-xs text-slate-500 font-bold text-center p-8 border border-indigo-500/10 rounded-2xl bg-[#0a0f1c]/50 flex flex-col items-center gap-3"
-                >
-                  <LayoutDashboard size={24} className="text-indigo-500/30" />
-                  {searchQuery ? "No matching flights." : "No flight logs found."}
-                </motion.div>
-              ) : (
-                filteredFlights.map((flight, i) => {
-                  const isSelected = selectedId === flight.id;
-                  const date = new Date(flight.created_at).toLocaleDateString(undefined, { 
-                    month: 'short', day: 'numeric' 
-                  });
-                  const time = new Date(flight.created_at).toLocaleTimeString(undefined, { 
-                    hour: '2-digit', minute: '2-digit' 
-                  });
+      </div>
 
-                  return (
-                    <motion.div
-                      layout
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      transition={{ delay: i * 0.05 }}
-                      key={flight.id} 
-                      className="group relative flex items-center"
-                    >
-                      <button
-                        onClick={() => onSelect(flight.id)}
-                        className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 relative overflow-hidden ${
-                          isSelected 
-                          ? 'active-flight-card bg-indigo-500/10 border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.4)]' 
-                          : 'bg-[#0a0f1c]/50 border-indigo-500/10 hover:border-indigo-500/30 hover:bg-indigo-500/5'
-                        }`}
-                      >
-                        {isSelected && (
-                          <motion.div 
-                            layoutId="activeIndicator"
-                            className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,1)]"
-                          />
-                        )}
-                        <div className="flex items-start justify-between mb-2 pr-8 pl-1">
-                          <span className={`font-mono text-xs font-black uppercase tracking-widest ${isSelected ? 'text-indigo-400 drop-shadow-md' : 'text-slate-300 group-hover:text-white transition-colors'}`}>
-                            FLT-{flight.id.substring(0, 6).toUpperCase()}
-                          </span>
-                          {isSelected && <Activity size={16} className="text-indigo-400 animate-pulse drop-shadow-[0_0_8px_rgba(99,102,241,0.8)]" />}
-                        </div>
-                        <div className="text-[11px] text-slate-500 font-bold flex items-center gap-2 pl-1">
-                          <span>{date}</span>
-                          <span className="w-1 h-1 rounded-full bg-slate-600" />
-                          <span>{time}</span>
-                        </div>
-                      </button>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm('Delete this flight log?')) {
-                            onDelete(flight.id);
-                          }
-                        }}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-all z-10 border border-transparent hover:border-rose-500/20"
-                        title="Delete flight"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </motion.div>
-                  );
-                })
-              )}
-            </AnimatePresence>
-          </div>
+      {/* Flight Logs List */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-2 flex flex-col gap-1.5" role="navigation" aria-label="Flight logs navigation">
+        <div className="px-3 py-2 flex items-center justify-between text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+          <span>Flight Logs</span>
+          <span>{filteredFlights.length}</span>
         </div>
+
+        {filteredFlights.length === 0 ? (
+          <div className="p-8 text-center flex flex-col items-center justify-center text-neutral-500">
+            <Clock size={20} className="stroke-[1.5] mb-2 opacity-50" />
+            <p className="text-xs font-medium">{searchQuery ? "No matching flights" : "No logs available"}</p>
+            <p className="text-[11px] text-neutral-600 mt-1">Upload a log or load a sample mission</p>
+          </div>
+        ) : (
+          filteredFlights.map((flight) => {
+            const isSelected = selectedId === flight.id;
+            const dateStr = flight.created_at
+              ? new Date(flight.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+              : 'Recent';
+            const timeStr = flight.created_at
+              ? new Date(flight.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+              : '';
+
+            return (
+              <div
+                key={flight.id}
+                className="group relative flex items-center"
+              >
+                <button
+                  onClick={() => {
+                    onSelect(flight.id);
+                    if (onMobileClose) onMobileClose();
+                  }}
+                  className={`w-full text-left px-3.5 py-3 rounded-xl border text-xs transition-all duration-200 flex items-center justify-between group/item ${
+                    isSelected
+                      ? 'bg-white/[0.08] border-white/[0.14] text-white shadow-sm'
+                      : 'border-transparent text-neutral-400 hover:text-white hover:bg-white/[0.04] hover:border-white/[0.08] hover:translate-x-0.5'
+                  }`}
+                  aria-current={isSelected ? 'page' : undefined}
+                >
+                  <div className="min-w-0 flex-1 pr-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`font-medium truncate ${isSelected ? 'text-white font-semibold' : 'text-neutral-300'}`}>
+                        {flight.name || `Flight ${flight.id.substring(0, 8).toUpperCase()}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-neutral-500">
+                      <span>{dateStr}</span>
+                      {timeStr && <span>· {timeStr}</span>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isSelected && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#2997ff] shadow-[0_0_6px_rgba(41,151,255,0.8)]" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Delete action button */}
+                {onDelete && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(flight.id);
+                    }}
+                    className="absolute right-2 p-1.5 text-neutral-500 hover:text-red-400 rounded-lg hover:bg-white/[0.08] opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                    title="Delete log"
+                    aria-label={`Delete flight ${flight.id}`}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
-      
-      <div className="p-5 border-t border-indigo-500/20 bg-[#0a0f1c]/80 text-[9px] font-black uppercase tracking-widest text-slate-500 text-center relative z-10 flex items-center justify-center gap-2 shrink-0">
-        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)] animate-pulse" />
-        Powered by Gemini AI
+
+      {/* Footer System Status */}
+      <div className="p-4 border-t border-white/[0.06] text-[11px] text-neutral-500 flex items-center justify-between">
+        <span>AeroInsight v2.0</span>
+        <span className="flex items-center gap-1.5 text-neutral-400">
+          <CheckCircle2 size={12} className="text-[#30d158]" /> Ready
+        </span>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Persistent Sidebar */}
+      <aside className="hidden lg:block w-72 shrink-0 h-full">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Drawer with Backdrop */}
+      <AnimatePresence>
+        {isMobileOpen && (
+          <div className="lg:hidden fixed inset-0 z-50 flex">
+            {/* Backdrop Scrim */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onMobileClose}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+              aria-hidden="true"
+            />
+            {/* Drawer Content */}
+            <motion.div
+              initial={{ x: -300 }}
+              animate={{ x: 0 }}
+              exit={{ x: -300 }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="relative w-72 max-w-[80vw] h-full shadow-2xl z-10"
+            >
+              {sidebarContent}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
