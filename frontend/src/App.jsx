@@ -255,6 +255,25 @@ function App() {
   };
 
   /**
+   * Handles 3D camera focus on an anomaly point selected directly from the 2D map popup.
+   *
+   * @param {Object} point - Selected telemetry waypoint.
+   */
+  const handleFocusAnomalyFromMap = (point) => {
+    setIsDigitalTwinOpen(true);
+    fetch(`${API_BASE_URL}/api/unity/focus`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'OrbitAnomaly',
+        targetPosition: { x: 0, y: point.altitude, z: 0 },
+        flightId: selectedFlightId,
+        anomalyDescription: point.issue
+      })
+    }).catch(() => {});
+  };
+
+  /**
    * Handles flight telemetry assistant queries with instant intelligence synthesis.
    *
    * @param {React.FormEvent} e - Form submission event.
@@ -483,7 +502,7 @@ function App() {
                     </div>
 
                     <div className="flex-1 w-full h-full min-h-0 rounded-xl overflow-hidden border border-white/[0.08]">
-                      <Map telemetryData={flightData} />
+                      <Map telemetryData={flightData} onFocusAnomalyIn3D={handleFocusAnomalyFromMap} />
                     </div>
                   </section>
 
@@ -703,6 +722,7 @@ function App() {
             isOpen={isMapFullscreen}
             onClose={() => setIsMapFullscreen(false)}
             telemetryData={flightData}
+            onFocusAnomalyIn3D={handleFocusAnomalyFromMap}
           />
         )}
       </AnimatePresence>

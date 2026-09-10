@@ -15,9 +15,10 @@ import Map from './Map';
  * @param {boolean} props.isOpen - Whether modal is visible.
  * @param {Function} props.onClose - Modal close handler.
  * @param {Array<Object>} props.telemetryData - Flight telemetry data array.
+ * @param {Function} [props.onFocusAnomalyIn3D] - Optional callback to focus anomaly in 3D.
  * @returns {React.ReactElement|null} The rendered modal or null.
  */
-function MapModal({ isOpen, onClose, telemetryData }) {
+function MapModal({ isOpen, onClose, telemetryData, onFocusAnomalyIn3D }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -66,7 +67,7 @@ function MapModal({ isOpen, onClose, telemetryData }) {
         {/* Modal Body */}
         <div className="flex-1 p-4 bg-[#0a0a0c]">
           <div className="w-full h-full rounded-xl overflow-hidden border border-white/[0.08]">
-            <Map telemetryData={telemetryData} />
+            <Map telemetryData={telemetryData} onFocusAnomalyIn3D={onFocusAnomalyIn3D} />
           </div>
         </div>
       </motion.div>

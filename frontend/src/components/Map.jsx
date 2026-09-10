@@ -6,7 +6,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, CircleMarker, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
-import { AlertCircle, Play, Pause, RotateCcw } from 'lucide-react';
+import { AlertCircle, Play, Pause, RotateCcw, Box } from 'lucide-react';
 import { renderToString } from 'react-dom/server';
 
 // Fix default leaflet marker asset paths for bundlers
@@ -63,9 +63,10 @@ function MapBounds({ positions }) {
  *
  * @param {Object} props - Component properties.
  * @param {Array<Object>} props.telemetryData - Telemetry data points.
+ * @param {Function} [props.onFocusAnomalyIn3D] - Optional callback to focus anomaly in 3D Digital Twin.
  * @returns {React.ReactElement|null} Rendered map or null if data is empty.
  */
-export default function Map({ telemetryData }) {
+export default function Map({ telemetryData, onFocusAnomalyIn3D }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackIndex, setPlaybackIndex] = useState(0);
 
@@ -249,6 +250,19 @@ export default function Map({ telemetryData }) {
                     <span className="text-neutral-200 font-semibold">{new Date(point.timestamp).toLocaleTimeString()}</span>
                   </div>
                 </div>
+
+                {onFocusAnomalyIn3D && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onFocusAnomalyIn3D(point);
+                    }}
+                    className="mt-2.5 w-full py-1.5 px-3 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 hover:text-white font-medium text-[11px] flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                  >
+                    <Box size={13} className="text-cyan-400" />
+                    <span>Focus in 3D Digital Twin</span>
+                  </button>
+                )}
               </div>
             </Popup>
           </Marker>

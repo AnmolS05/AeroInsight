@@ -33,5 +33,10 @@
   - **Description:** Developed and integrated interactive 3D spatial orbit trajectory canvas (`Interactive3DTrajectory.jsx`) with dynamic pitch/yaw rotation, mouse drag orbiting, zoom scaling, ground reference grid, altitude-gradient trajectory ribbon, glowing anomaly beacons, and animated drone position inside `DigitalTwinModal.jsx`; created automated Unity Editor Scene Builder (`AeroInsightSceneBuilder.cs`) under `Tools > AeroInsight > Bootstrap Simulation Scene` for one-click environment setup with soft sun lighting, 500m ground plane, virtual drone quadcopter hierarchy, and calibrated mission camera; recompiled production frontend bundle and synchronized static distribution assets.
   - **Files affected:** `simulation/Assets/Editor/AeroInsightSceneBuilder.cs`, `frontend/src/components/Interactive3DTrajectory.jsx`, `frontend/src/components/DigitalTwinModal.jsx`, `public/assets/index-C0FXQH9N.css`, `public/assets/index-Dk2u7HZi.js`, `public/index.html`, `CHANGELOG.md`
 
+- **Date:** 2026-09-10 21:11:00
+  - **Description:** Embedded interactive 3D camera focus trigger ('Focus in 3D Digital Twin') into Leaflet 2D map anomaly popups across both main dashboard and fullscreen map modal views; connected 2D geospatial anomaly inspection to real-time Unity Editor MCP camera viewport orbit directives (`POST /api/unity/focus`) and instant Digital Twin modal activation; recompiled frontend production bundle and synchronized static distribution assets.
+  - **Files affected:** `frontend/src/components/Map.jsx`, `frontend/src/components/MapModal.jsx`, `frontend/src/App.jsx`, `public/assets/index-9k9SWnnH.css`, `public/assets/index-CG73o4-A.js`, `public/index.html`, `CHANGELOG.md`
+
+
 
 
