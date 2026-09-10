@@ -74,6 +74,19 @@ function detectIntent(text) {
         return { type: 'BLACKBOX_FDR_ANALYSIS' };
     }
 
+    // 6. Subsystem Component Inspection
+    if (lower.includes('inspect') || lower.includes('motor 1') || lower.includes('motor 2') || lower.includes('motor 3') || lower.includes('motor 4') || lower.includes('battery health') || lower.includes('subsystem') || lower.includes('imu') || lower.includes('esc')) {
+        let component = 'Motor_1_FR';
+        if (lower.includes('motor 2') || lower.includes('rear left')) component = 'Motor_2_RL';
+        else if (lower.includes('motor 3') || lower.includes('front left')) component = 'Motor_3_FL';
+        else if (lower.includes('motor 4') || lower.includes('rear right')) component = 'Motor_4_RR';
+        else if (lower.includes('battery') || lower.includes('voltage') || lower.includes('cell') || lower.includes('power')) component = 'Battery_Pack';
+        else if (lower.includes('imu') || lower.includes('gyro') || lower.includes('compass') || lower.includes('sensor')) component = 'Avionics_IMU';
+        else if (lower.includes('esc') || lower.includes('speed controller')) component = 'ESC_SpeedController';
+
+        return { type: 'INSPECT_COMPONENT', payload: { componentName: component } };
+    }
+
     return null;
 }
 
@@ -270,6 +283,49 @@ ${fdrReport.airworthinessRecommendations.map((rec) => `- ${rec}`).join('\n')}
                 answer: summary,
                 action: 'OPEN_BLACKBOX',
                 actionPayload: fdrReport
+            });
+        }
+
+        // Action 6: Subsystem Component Inspection
+        if (intent && intent.type === 'INSPECT_COMPONENT') {
+            const { componentName } = intent.payload;
+            const lastPt = telemetry.length > 0 ? telemetry[telemetry.length - 1] : { altitude: 25, battery: 85 };
+            const anomalyIssue = telemetry.find((t) => t.issue && t.issue.toLowerCase() !== 'none')?.issue || '';
+
+            const health = unityMcpService.calculateSubsystemHealth(lastPt, anomalyIssue);
+            const targetComp = health.subsystems[componentName] || {
+                name: componentName,
+                healthPercent: 95,
+                status: 'NOMINAL',
+            };
+
+            const bridgeResult = await unityMcpService.inspectDroneComponent(componentName, {
+                flightId,
+                status: targetComp.status,
+                healthPercent: targetComp.healthPercent,
+            });
+
+            const answer = `### 🔍 Subsystem Component Inspection: ${targetComp.name}
+- **Component Identifier:** \`${componentName}\`
+- **Subsystem Status:** \`${targetComp.status}\`
+- **Health Rating:** **${targetComp.healthPercent}%** (Fleet Overall: ${health.overallHealthScore}%)
+${targetComp.rpm !== undefined ? `- **Rotor Speed:** ${targetComp.rpm} RPM` : ''}
+${targetComp.tempC !== undefined ? `- **Operating Temperature:** ${targetComp.tempC}°C` : ''}
+${targetComp.voltage !== undefined ? `- **Pack Voltage:** ${targetComp.voltage} V` : ''}
+${targetComp.vibrationG !== undefined ? `- **Vibration FFT Level:** ${targetComp.vibrationG} G` : ''}
+
+*The 3D mission camera and Unity SceneView have oriented directly onto ${targetComp.name} with thermal stress diagnostics.*`;
+
+            return res.status(200).json({
+                answer,
+                action: 'INSPECT_COMPONENT',
+                actionPayload: {
+                    componentName,
+                    subsystem: targetComp,
+                    overallHealthScore: health.overallHealthScore,
+                    allSubsystems: health.subsystems,
+                    bridge: bridgeResult,
+                }
             });
         }
 

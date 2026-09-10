@@ -897,6 +897,140 @@ async function generateBlackBoxFDRReport(flightId, telemetryPoints = [], anomaly
     };
 }
 
+/**
+ * Computes individual drone subsystem health, thermal metrics, RPMs, and diagnostic codes
+ * from telemetry parameters and reported anomalies.
+ *
+ * @param {Object} telemetryPoint - Current telemetry point.
+ * @param {string} [anomalyDescription] - Optional anomaly string.
+ * @returns {Object} Subsystem health analysis.
+ */
+function calculateSubsystemHealth(telemetryPoint = {}, anomalyDescription = '') {
+    const battery = telemetryPoint.battery !== undefined ? telemetryPoint.battery : 90.0;
+    const altitude = telemetryPoint.altitude !== undefined ? telemetryPoint.altitude : 25.0;
+    const desc = (anomalyDescription || telemetryPoint.issue || '').toLowerCase();
+
+    // Base nominal values
+    const isMotorCutoff = desc.includes('motor') || desc.includes('rotor') || desc.includes('cutoff');
+    const isBatteryIssue = desc.includes('battery') || desc.includes('voltage') || desc.includes('sag') || battery < 20;
+    const isImuIssue = desc.includes('compass') || desc.includes('drift') || desc.includes('vibration') || desc.includes('imu');
+    const isThermalIssue = desc.includes('heat') || desc.includes('temp') || desc.includes('overheat');
+
+    // Baseline hover RPM ~ 7800 RPM
+    const hoverRPM = 7800;
+
+    const subsystems = {
+        Motor_1_FR: {
+            name: 'Motor 1 (Front-Right, CW)',
+            rpm: isMotorCutoff ? 1200 : isThermalIssue ? 8950 : hoverRPM + Math.round(Math.sin(altitude) * 200),
+            tempC: isThermalIssue ? 92.4 : isMotorCutoff ? 78.5 : 46.2,
+            vibrationG: isMotorCutoff ? 3.4 : 0.42,
+            healthPercent: isMotorCutoff ? 18 : isThermalIssue ? 52 : 98,
+            status: isMotorCutoff ? 'CRITICAL_CUTOFF' : isThermalIssue ? 'THERMAL_OVERHEAT' : 'NOMINAL',
+        },
+        Motor_2_RL: {
+            name: 'Motor 2 (Rear-Left, CW)',
+            rpm: hoverRPM + (isMotorCutoff ? 1400 : 0),
+            tempC: 48.1,
+            vibrationG: 0.45,
+            healthPercent: 96,
+            status: 'NOMINAL',
+        },
+        Motor_3_FL: {
+            name: 'Motor 3 (Front-Left, CCW)',
+            rpm: hoverRPM + (isMotorCutoff ? 1100 : 0),
+            tempC: 47.6,
+            vibrationG: 0.41,
+            healthPercent: 97,
+            status: 'NOMINAL',
+        },
+        Motor_4_RR: {
+            name: 'Motor 4 (Rear-Right, CCW)',
+            rpm: hoverRPM + (isMotorCutoff ? 1350 : 0),
+            tempC: 49.3,
+            vibrationG: 0.48,
+            healthPercent: 95,
+            status: 'NOMINAL',
+        },
+        Battery_Pack: {
+            name: 'LiPo 6S 5000mAh Pack',
+            voltage: parseFloat((22.2 * (battery / 100.0)).toFixed(2)),
+            cellDeviationMv: isBatteryIssue ? 240 : 12,
+            tempC: isBatteryIssue ? 58.5 : 34.2,
+            dischargeAmps: 28.4,
+            healthPercent: isBatteryIssue ? 38 : Math.round(battery),
+            status: isBatteryIssue ? 'VOLTAGE_SAG_CELL_IMBALANCE' : 'NOMINAL',
+        },
+        Avionics_IMU: {
+            name: '6-DOF Precision IMU & Compass',
+            gyroDriftDegSec: isImuIssue ? 4.8 : 0.04,
+            magFieldMicroTesla: isImuIssue ? 88.5 : 46.2,
+            tempC: 38.0,
+            healthPercent: isImuIssue ? 44 : 99,
+            status: isImuIssue ? 'MAGNETIC_INTERFERENCE_DRIFT' : 'NOMINAL',
+        },
+        ESC_SpeedController: {
+            name: '4-in-1 60A BLHeli_32 ESC',
+            fetTemperatureC: isThermalIssue ? 86.4 : 52.0,
+            pwmDutyPercent: 68.5,
+            healthPercent: isThermalIssue ? 60 : 98,
+            status: isThermalIssue ? 'ELEVATED_JUNCTION_TEMP' : 'NOMINAL',
+        },
+    };
+
+    const overallHealthScore = Math.round(
+        Object.values(subsystems).reduce((acc, curr) => acc + curr.healthPercent, 0) / Object.keys(subsystems).length
+    );
+
+    return {
+        timestamp: telemetryPoint.timestamp || new Date().toISOString(),
+        overallHealthScore,
+        status: overallHealthScore > 85 ? 'OPTIMAL' : overallHealthScore > 60 ? 'CAUTION' : 'CRITICAL',
+        subsystems,
+    };
+}
+
+/**
+ * Dispatches a component-level inspection and SceneView framing command to the Unity Editor bridge.
+ *
+ * @param {string} componentName - Subsystem component identifier (e.g. 'Motor_1_FR', 'Battery_Pack').
+ * @param {Object} [options] - Component telemetry, temperature, and diagnostics.
+ * @returns {Promise<Object>} Inspection dispatch result.
+ */
+async function inspectDroneComponent(componentName, options = {}) {
+    const payload = {
+        componentName,
+        ...options,
+        timestamp: new Date().toISOString(),
+    };
+
+    const status = await checkBridgeStatus(500);
+    if (!status.connected) {
+        return {
+            bridgeConnected: false,
+            componentName,
+            message: `Unity Editor Bridge offline. Component inspection localized in 3D web viewport.`,
+            fallback: true,
+        };
+    }
+
+    try {
+        const response = await dispatchBridgeCommand('/api/component-inspect', payload, 2000);
+        return {
+            bridgeConnected: true,
+            componentName,
+            unityResponse: response,
+        };
+    } catch (err) {
+        return {
+            bridgeConnected: false,
+            componentName,
+            message: `Unity Editor Bridge error (${err.message}). Localized in 3D web viewport.`,
+            fallback: true,
+        };
+    }
+}
+
 module.exports = {
     checkBridgeStatus,
     reconstructDigitalTwin,
@@ -905,5 +1039,7 @@ module.exports = {
     generateSyntheticTelemetryPoints,
     generateSwarmMissionTelemetry,
     generateBlackBoxFDRReport,
+    calculateSubsystemHealth,
+    inspectDroneComponent,
 };
 

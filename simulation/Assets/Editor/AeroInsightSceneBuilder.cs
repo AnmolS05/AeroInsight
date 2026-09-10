@@ -68,18 +68,57 @@ namespace AeroInsight.Editor
                 droneMat.SetFloat("_Glossiness", 0.6f);
                 droneObj.GetComponent<Renderer>().material = droneMat;
 
-                // Add 4 rotor arms
+                // Add 4 named motor rotors with directional orientation
+                string[] motorNames = new string[] { "Motor_1_FR", "Motor_2_RL", "Motor_3_FL", "Motor_4_RR" };
+                float[] motorAngles = new float[] { 45f, 225f, 135f, 315f };
+
                 for (int i = 0; i < 4; i++)
                 {
                     GameObject arm = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                    arm.name = $"RotorArm_{i}";
+                    arm.name = motorNames[i];
                     arm.transform.SetParent(droneObj.transform);
-                    float angle = i * 90f + 45f;
-                    float rad = angle * Mathf.Deg2Rad;
-                    arm.transform.localPosition = new Vector3(Mathf.Cos(rad) * 0.9f, 0.1f, Mathf.Sin(rad) * 0.9f);
-                    arm.transform.localScale = new Vector3(0.35f, 0.02f, 0.35f);
-                    arm.GetComponent<Renderer>().material.color = Color.cyan;
+                    float rad = motorAngles[i] * Mathf.Deg2Rad;
+                    arm.transform.localPosition = new Vector3(Mathf.Cos(rad) * 0.9f, 0.12f, Mathf.Sin(rad) * 0.9f);
+                    arm.transform.localScale = new Vector3(0.38f, 0.04f, 0.38f);
+
+                    Material motorMat = new Material(Shader.Find("Standard"));
+                    motorMat.color = new Color(0f, 0.85f, 1f); // Aero Cyan
+                    motorMat.EnableKeyword("_EMISSION");
+                    motorMat.SetColor("_EmissionColor", new Color(0f, 0.6f, 0.9f) * 0.8f);
+                    arm.GetComponent<Renderer>().material = motorMat;
                 }
+
+                // Add Battery Pack Subsystem (Bottom Fuselage)
+                GameObject battery = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                battery.name = "Battery_Pack";
+                battery.transform.SetParent(droneObj.transform);
+                battery.transform.localPosition = new Vector3(0f, -0.2f, 0f);
+                battery.transform.localScale = new Vector3(0.5f, 0.22f, 0.8f);
+                Material batMat = new Material(Shader.Find("Standard"));
+                batMat.color = new Color(0.18f, 0.18f, 0.22f); // LiPo polymer dark gray
+                battery.GetComponent<Renderer>().material = batMat;
+
+                // Add Avionics IMU Flight Controller (Top Fuselage)
+                GameObject avionics = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                avionics.name = "Avionics_IMU";
+                avionics.transform.SetParent(droneObj.transform);
+                avionics.transform.localPosition = new Vector3(0f, 0.18f, 0f);
+                avionics.transform.localScale = new Vector3(0.35f, 0.1f, 0.35f);
+                Material imuMat = new Material(Shader.Find("Standard"));
+                imuMat.color = new Color(0.95f, 0.8f, 0.15f); // Gold avionics shield
+                imuMat.EnableKeyword("_EMISSION");
+                imuMat.SetColor("_EmissionColor", new Color(0.9f, 0.7f, 0.1f) * 0.5f);
+                avionics.GetComponent<Renderer>().material = imuMat;
+
+                // Add 4-in-1 ESC Speed Controller (Center Fuselage)
+                GameObject esc = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                esc.name = "ESC_SpeedController";
+                esc.transform.SetParent(droneObj.transform);
+                esc.transform.localPosition = new Vector3(0f, 0.02f, 0f);
+                esc.transform.localScale = new Vector3(0.45f, 0.08f, 0.45f);
+                Material escMat = new Material(Shader.Find("Standard"));
+                escMat.color = new Color(0.25f, 0.28f, 0.35f); // Aluminum heatsink
+                esc.GetComponent<Renderer>().material = escMat;
 
                 Undo.RegisterCreatedObjectUndo(droneObj, "Create Virtual Drone");
             }

@@ -163,6 +163,18 @@ namespace AeroInsight.Editor
                     _mainThreadQueue.Enqueue(() => ExecuteBlackBoxInvestigation(body));
                     responseJson = "{\"success\":true,\"message\":\"Black Box incident coordinates localized and marked in Unity scene.\"}";
                 }
+                else if (path == "/api/component-inspect" && request.HttpMethod == "POST")
+                {
+                    string body = ReadRequestBody(request);
+                    _mainThreadQueue.Enqueue(() => ExecuteComponentInspection(body));
+                    responseJson = "{\"success\":true,\"message\":\"Component inspection focus applied in Unity SceneView.\"}";
+                }
+                else if (path == "/api/swarm-sync" && request.HttpMethod == "POST")
+                {
+                    string body = ReadRequestBody(request);
+                    _mainThreadQueue.Enqueue(() => ExecuteSwarmSync(body));
+                    responseJson = "{\"success\":true,\"message\":\"Tactical swarm formation synchronized in Unity scene.\"}";
+                }
                 else
                 {
                     statusCode = 404;
@@ -378,6 +390,132 @@ namespace AeroInsight.Editor
             catch (Exception ex)
             {
                 Debug.LogWarning($"[AeroInsight MCP] Black Box marker positioning error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Inspects and focuses on a specific drone subsystem component (Motor, Battery, ESC, IMU),
+        /// highlighting the part with thermal stress emission and framing SceneView camera.
+        /// </summary>
+        private static void ExecuteComponentInspection(string jsonBody)
+        {
+            try
+            {
+                string componentName = "Motor_1_FR";
+                var matchComp = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"componentName\"\\s*:\\s*\"([^\"]+)\"");
+                if (matchComp.Success)
+                {
+                    componentName = matchComp.Groups[1].Value;
+                }
+
+                GameObject drone = GameObject.Find("AeroInsight_Drone");
+                if (drone == null)
+                {
+                    Debug.LogWarning("[AeroInsight MCP] Drone GameObject not found in scene. Bootstrapping scene first...");
+                    AeroInsightSceneBuilder.BootstrapScene();
+                    drone = GameObject.Find("AeroInsight_Drone");
+                }
+
+                if (drone == null) return;
+
+                Transform targetPart = drone.transform.Find(componentName);
+                if (targetPart == null)
+                {
+                    // Fallback to any child containing component name
+                    foreach (Transform child in drone.transform)
+                    {
+                        if (child.name.ToLowerInvariant().Contains(componentName.ToLowerInvariant()))
+                        {
+                            targetPart = child;
+                            break;
+                        }
+                    }
+                }
+
+                if (targetPart != null)
+                {
+                    // Select in Editor
+                    Selection.activeGameObject = targetPart.gameObject;
+
+                    // Frame SceneView camera closely
+                    SceneView sceneView = SceneView.lastActiveSceneView;
+                    if (sceneView != null)
+                    {
+                        sceneView.LookAt(targetPart.position, Quaternion.Euler(25, 45, 0), 2.2f);
+                        sceneView.Repaint();
+                    }
+
+                    // Apply pulsating thermal highlight material
+                    var renderer = targetPart.GetComponent<MeshRenderer>();
+                    if (renderer != null)
+                    {
+                        Material highlightMat = new Material(Shader.Find("Standard"));
+                        bool isWarning = jsonBody.ToLowerInvariant().Contains("warning") || jsonBody.ToLowerInvariant().Contains("critical") || jsonBody.ToLowerInvariant().Contains("cutoff");
+                        highlightMat.color = isWarning ? new Color(1f, 0.2f, 0.1f) : new Color(0.1f, 0.8f, 1f);
+                        highlightMat.EnableKeyword("_EMISSION");
+                        highlightMat.SetColor("_EmissionColor", isWarning ? new Color(1f, 0.15f, 0f) * 2.0f : new Color(0f, 0.7f, 1f) * 1.5f);
+                        renderer.material = highlightMat;
+                    }
+
+                    Debug.Log($"[AeroInsight MCP] Focused SceneView on drone component '{componentName}' at {targetPart.position}.");
+                }
+                else
+                {
+                    Debug.LogWarning($"[AeroInsight MCP] Drone component '{componentName}' not found on AeroInsight_Drone.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[AeroInsight MCP] Component inspection error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Synchronizes multi-drone tactical swarm positions in the Unity Scene,
+        /// instantiating or updating Wingman drones in formation.
+        /// </summary>
+        private static void ExecuteSwarmSync(string jsonBody)
+        {
+            try
+            {
+                GameObject leaderDrone = GameObject.Find("AeroInsight_Drone");
+                if (leaderDrone == null) return;
+
+                Vector3 leaderPos = leaderDrone.transform.position;
+
+                // Match Wingman 02 offset
+                string[] wingmen = new string[] { "AeroInsight_Wingman_02", "AeroInsight_Wingman_03" };
+                Vector3[] defaultOffsets = new Vector3[] { new Vector3(25f, 2f, -15f), new Vector3(-25f, 4f, -15f) };
+
+                for (int i = 0; i < wingmen.Length; i++)
+                {
+                    string wingmanName = wingmen[i];
+                    GameObject wingman = GameObject.Find(wingmanName);
+                    if (wingman == null)
+                    {
+                        wingman = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        wingman.name = wingmanName;
+                        wingman.transform.localScale = leaderDrone.transform.localScale * 0.9f;
+
+                        var rend = wingman.GetComponent<MeshRenderer>();
+                        if (rend != null)
+                        {
+                            Material wingMat = new Material(Shader.Find("Standard"));
+                            wingMat.color = new Color(0.95f, 0.75f, 0.15f); // Tactical Gold
+                            wingMat.EnableKeyword("_EMISSION");
+                            wingMat.SetColor("_EmissionColor", new Color(0.9f, 0.65f, 0.1f) * 0.8f);
+                            rend.material = wingMat;
+                        }
+                    }
+
+                    wingman.transform.position = leaderPos + defaultOffsets[i];
+                }
+
+                Debug.Log("[AeroInsight MCP] Tactical Swarm formation updated in Unity scene.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[AeroInsight MCP] Swarm synchronization error: {ex.Message}");
             }
         }
     }

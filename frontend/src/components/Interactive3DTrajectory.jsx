@@ -34,7 +34,9 @@ import {
   Activity,
   ShieldAlert,
   Wind,
-  Users
+  Users,
+  Cpu,
+  X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -70,6 +72,8 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
   const [showSwarmWingman, setShowSwarmWingman] = useState(false);
   const [unitySyncEnabled, setUnitySyncEnabled] = useState(false);
   const [isSyncingUnity, setIsSyncingUnity] = useState(false);
+  const [selectedComponent, setSelectedComponent] = useState(null); // 'Motor_1_FR' | 'Motor_2_RL' | 'Motor_3_FL' | 'Motor_4_RR' | 'Battery_Pack' | 'Avionics_IMU' | 'ESC_SpeedController' | null
+  const [isInspectingComponent, setIsInspectingComponent] = useState(false);
 
   const isDraggingRef = useRef(false);
   const lastMouseRef = useRef({ x: 0, y: 0 });
@@ -285,6 +289,124 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
       clearance
     };
   }, [playbackProgress, waypoints3D]);
+
+  // Subsystem Component Diagnostics & Health computation
+  const subsystemDiagnostics = useMemo(() => {
+    const issue = (activeDroneState.issue || '').toLowerCase();
+    const isMotorCutoff = issue.includes('motor') || issue.includes('rotor') || issue.includes('cutoff');
+    const isBatteryIssue = issue.includes('battery') || issue.includes('voltage') || issue.includes('sag') || activeDroneState.battery < 20;
+    const isImuIssue = issue.includes('compass') || issue.includes('drift') || issue.includes('vibration') || issue.includes('imu');
+    const isThermalIssue = issue.includes('heat') || issue.includes('temp') || issue.includes('overheat');
+
+    return {
+      Motor_1_FR: {
+        name: 'Motor 1 (Front-Right, CW)',
+        shortName: 'M1 (FR)',
+        rpm: isMotorCutoff ? 1200 : isThermalIssue ? 8950 : 7800 + Math.round(Math.sin(activeDroneState.altitude) * 200),
+        tempC: isThermalIssue ? 92.4 : isMotorCutoff ? 78.5 : 46.2,
+        vibrationG: isMotorCutoff ? 3.4 : 0.42,
+        healthPercent: isMotorCutoff ? 18 : isThermalIssue ? 52 : 98,
+        status: isMotorCutoff ? 'CRITICAL_CUTOFF' : isThermalIssue ? 'THERMAL_OVERHEAT' : 'NOMINAL',
+        statusColor: isMotorCutoff ? '#ff453a' : isThermalIssue ? '#ff9f0a' : '#30d158'
+      },
+      Motor_2_RL: {
+        name: 'Motor 2 (Rear-Left, CW)',
+        shortName: 'M2 (RL)',
+        rpm: 7800 + (isMotorCutoff ? 1400 : 0),
+        tempC: 48.1,
+        vibrationG: 0.45,
+        healthPercent: 96,
+        status: 'NOMINAL',
+        statusColor: '#30d158'
+      },
+      Motor_3_FL: {
+        name: 'Motor 3 (Front-Left, CCW)',
+        shortName: 'M3 (FL)',
+        rpm: 7800 + (isMotorCutoff ? 1100 : 0),
+        tempC: 47.6,
+        vibrationG: 0.41,
+        healthPercent: 97,
+        status: 'NOMINAL',
+        statusColor: '#30d158'
+      },
+      Motor_4_RR: {
+        name: 'Motor 4 (Rear-Right, CCW)',
+        shortName: 'M4 (RR)',
+        rpm: 7800 + (isMotorCutoff ? 1350 : 0),
+        tempC: 49.3,
+        vibrationG: 0.48,
+        healthPercent: 95,
+        status: 'NOMINAL',
+        statusColor: '#30d158'
+      },
+      Battery_Pack: {
+        name: 'LiPo 6S 5000mAh Battery',
+        shortName: 'Battery',
+        voltage: (22.2 * (activeDroneState.battery / 100.0)).toFixed(2),
+        dischargeAmps: 28.4,
+        tempC: isBatteryIssue ? 58.5 : 34.2,
+        healthPercent: isBatteryIssue ? 38 : Math.round(activeDroneState.battery),
+        status: isBatteryIssue ? 'VOLTAGE_SAG_CELL_IMBALANCE' : 'NOMINAL',
+        statusColor: isBatteryIssue ? '#ff453a' : activeDroneState.battery < 30 ? '#ff9f0a' : '#30d158'
+      },
+      Avionics_IMU: {
+        name: '6-DOF Precision IMU & Compass',
+        shortName: 'IMU',
+        gyroDrift: isImuIssue ? '4.8°/s' : '0.04°/s',
+        magField: isImuIssue ? '88.5 µT' : '46.2 µT',
+        healthPercent: isImuIssue ? 44 : 99,
+        status: isImuIssue ? 'MAGNETIC_INTERFERENCE_DRIFT' : 'NOMINAL',
+        statusColor: isImuIssue ? '#ff9f0a' : '#30d158'
+      },
+      ESC_SpeedController: {
+        name: '4-in-1 60A BLHeli_32 ESC',
+        shortName: 'ESC',
+        tempC: isThermalIssue ? 86.4 : 52.0,
+        pwmDuty: '68.5%',
+        healthPercent: isThermalIssue ? 60 : 98,
+        status: isThermalIssue ? 'ELEVATED_JUNCTION_TEMP' : 'NOMINAL',
+        statusColor: isThermalIssue ? '#ff9f0a' : '#30d158'
+      }
+    };
+  }, [activeDroneState]);
+
+  // Inspect and dispatch component focus to Unity Bridge
+  const handleInspectComponent = useCallback(async (compKey) => {
+    setSelectedComponent(compKey);
+    if (!compKey) {
+      toast('Returned to Whole Airframe View', { icon: '🛸' });
+      return;
+    }
+
+    const comp = subsystemDiagnostics[compKey];
+    if (apiUrl) {
+      try {
+        setIsInspectingComponent(true);
+        const res = await fetch(`${apiUrl}/api/unity/component-inspect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            componentName: compKey,
+            flightId: flightId || 'LIVE',
+            telemetryPoint: activeDroneState,
+            anomalyDescription: activeDroneState.issue || ''
+          })
+        });
+        const data = await res.json();
+        if (data.bridge?.bridgeConnected) {
+          toast.success(`Unity SceneView camera oriented to ${comp.name}!`, { icon: '🎯' });
+        } else {
+          toast(`Focused on ${comp.name} in 3D Viewport`, { icon: '🔍' });
+        }
+      } catch {
+        toast(`Focused on ${comp.name} in 3D Viewport`, { icon: '🔍' });
+      } finally {
+        setIsInspectingComponent(false);
+      }
+    } else {
+      toast(`Focused on ${comp.name} in 3D Viewport`, { icon: '🔍' });
+    }
+  }, [apiUrl, flightId, activeDroneState, subsystemDiagnostics]);
 
   // Dual-screen dispatch to Unity Editor Viewport
   const syncToUnityViewport = useCallback(async (targetState, force = false) => {
@@ -805,8 +927,55 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
           ctx.shadowBlur = 0;
         }
       }
+
+      // Draw Subsystem Component Diagnostics & Focus (Concept 1 & 4)
+      if (selectedComponent && liveDroneProj.visible) {
+        const compOffsets = {
+          Motor_1_FR: { dx: 14, dy: -10, label: 'M1 (FR, CW)' },
+          Motor_2_RL: { dx: -14, dy: 10, label: 'M2 (RL, CW)' },
+          Motor_3_FL: { dx: -14, dy: -10, label: 'M3 (FL, CCW)' },
+          Motor_4_RR: { dx: 14, dy: 10, label: 'M4 (RR, CCW)' },
+          Battery_Pack: { dx: 0, dy: 6, label: 'LiPo 6S Battery' },
+          Avionics_IMU: { dx: 0, dy: -6, label: 'Avionics IMU' },
+          ESC_SpeedController: { dx: 0, dy: 0, label: '4-in-1 ESC' },
+        };
+        const offset = compOffsets[selectedComponent] || { dx: 0, dy: 0, label: selectedComponent };
+        const compSx = liveDroneProj.sx + offset.dx;
+        const compSy = liveDroneProj.sy + offset.dy;
+
+        // Draw glowing thermal ring on selected component
+        const compDiag = subsystemDiagnostics[selectedComponent];
+        const isFault = compDiag ? compDiag.status !== 'NOMINAL' : activeDroneState.isAnomaly;
+        const haloColor = isFault ? '#ff453a' : '#64d2ff';
+
+        ctx.shadowColor = haloColor;
+        ctx.shadowBlur = 15;
+        ctx.strokeStyle = haloColor;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(compSx, compSy, 10, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Connecting callout leader line
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(compSx, compSy);
+        ctx.lineTo(compSx + 22, compSy - 18);
+        ctx.lineTo(compSx + 75, compSy - 18);
+        ctx.stroke();
+
+        // Callout Tag
+        ctx.fillStyle = 'rgba(10, 10, 15, 0.85)';
+        ctx.fillRect(compSx + 22, compSy - 32, 85, 17);
+        ctx.fillStyle = haloColor;
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(offset.label, compSx + 26, compSy - 20);
+        ctx.shadowBlur = 0;
+      }
     }
-  }, [pitch, yaw, zoom, cameraMode, waypoints3D, splineTrajectory, proceduralObstacles, playbackProgress, showVectors, showObstacles, showAtmosphere, showSwarmWingman, useSpline]);
+  }, [pitch, yaw, zoom, cameraMode, waypoints3D, splineTrajectory, proceduralObstacles, playbackProgress, showVectors, showObstacles, showAtmosphere, showSwarmWingman, useSpline, selectedComponent, subsystemDiagnostics]);
 
   // Mouse Orbiting & Dragging
   const handleMouseDown = (e) => {
@@ -835,6 +1004,39 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
     e.preventDefault();
     setZoom((prev) => Math.max(0.3, Math.min(3.5, prev - e.deltaY * 0.0015)));
   };
+
+  // Keyboard Shortcuts for Mission Control
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsPlaying((prev) => !prev);
+      } else if (e.key === 'v' || e.key === 'V') {
+        setShowVectors((prev) => !prev);
+      } else if (e.key === 's' || e.key === 'S') {
+        setUseSpline((prev) => !prev);
+      } else if (e.key === 'o' || e.key === 'O') {
+        setShowObstacles((prev) => !prev);
+      } else if (e.key === 'w' || e.key === 'W') {
+        setShowAtmosphere((prev) => !prev);
+      } else if (e.key === 'f' || e.key === 'F') {
+        setShowSwarmWingman((prev) => !prev);
+      } else if (e.key === 'c' || e.key === 'C') {
+        const compKeys = [null, 'Motor_1_FR', 'Motor_2_RL', 'Motor_3_FL', 'Motor_4_RR', 'Battery_Pack', 'Avionics_IMU', 'ESC_SpeedController'];
+        setSelectedComponent((curr) => {
+          const nextIdx = (compKeys.indexOf(curr) + 1) % compKeys.length;
+          const nextKey = compKeys[nextIdx];
+          handleInspectComponent(nextKey);
+          return nextKey;
+        });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleInspectComponent]);
 
   return (
     <div className="relative w-full h-full min-h-[380px] rounded-2xl overflow-hidden bg-[#0a0b0f] border border-white/10 select-none flex flex-col">
@@ -921,6 +1123,38 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
               <span>Anomaly Corridor: {activeDroneState.issue || 'Telemetry Variance'}</span>
             </div>
           )}
+
+          {/* Subsystem Diagnostics Quick Dock (Concept 1 & 4) */}
+          <div className="flex items-center flex-wrap gap-1 mt-1 p-1 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-[10px]">
+            <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-400 px-1">Subsys:</span>
+            <button
+              onClick={() => handleInspectComponent(null)}
+              className={`px-1.5 py-0.5 rounded-md font-medium transition-all ${
+                !selectedComponent ? 'bg-white/20 text-white font-semibold shadow-sm' : 'text-neutral-400 hover:text-white'
+              }`}
+              title="Whole Airframe View"
+            >
+              All
+            </button>
+            {Object.entries(subsystemDiagnostics).map(([key, diag]) => (
+              <button
+                key={key}
+                onClick={() => handleInspectComponent(selectedComponent === key ? null : key)}
+                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md font-mono transition-all ${
+                  selectedComponent === key
+                    ? 'bg-[#2997ff] text-white shadow-sm font-semibold'
+                    : 'bg-white/[0.04] text-neutral-300 hover:bg-white/10'
+                }`}
+                title={`${diag.name} (${diag.status})`}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: diag.statusColor }}
+                />
+                <span>{diag.shortName}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Top Right: Camera Mode Toggles & Aerospace Controls */}
@@ -1020,6 +1254,24 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
             </button>
           )}
 
+          {/* Subsystem Diagnostics Toggle */}
+          <button
+            onClick={() => {
+              if (selectedComponent) {
+                handleInspectComponent(null);
+              } else {
+                handleInspectComponent('Motor_1_FR');
+              }
+            }}
+            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 ${
+              selectedComponent ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'text-neutral-400 hover:text-white'
+            }`}
+            title="Inspect Drone Subsystems & Motor Health (C)"
+          >
+            <Cpu className="w-3 h-3 text-emerald-400" />
+            <span className="hidden sm:inline">Subsystems</span>
+          </button>
+
           <div className="w-px h-4 bg-white/10 mx-0.5" />
 
           {/* Camera View Mode Selector */}
@@ -1100,6 +1352,171 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
               <span className="w-2.5 h-0.5 bg-[#ff9f0a] border-b border-dashed" />
               <span>Weight (W)</span>
             </div>
+          </div>
+        )}
+
+        {/* Floating Subsystem Telemetry Detail Card (Concept 1 & 4) */}
+        {selectedComponent && subsystemDiagnostics[selectedComponent] && (
+          <div className="absolute bottom-3 right-3 max-w-xs sm:max-w-sm w-full p-3 rounded-2xl bg-black/85 backdrop-blur-xl border border-white/15 shadow-2xl z-20 font-sans text-xs">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-cyan-400 shrink-0">
+                  <Cpu className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <div className="font-semibold text-white leading-tight">
+                    {subsystemDiagnostics[selectedComponent].name}
+                  </div>
+                  <div className="text-[10px] font-mono flex items-center gap-1 mt-0.5">
+                    <span
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: subsystemDiagnostics[selectedComponent].statusColor }}
+                    />
+                    <span style={{ color: subsystemDiagnostics[selectedComponent].statusColor }}>
+                      {subsystemDiagnostics[selectedComponent].status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => handleInspectComponent(null)}
+                className="p-1 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-white transition-colors"
+                title="Close Inspector"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Health Bar */}
+            <div className="mt-2.5">
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <span className="text-neutral-400 font-medium">Subsystem Health</span>
+                <span
+                  className="font-mono font-semibold"
+                  style={{ color: subsystemDiagnostics[selectedComponent].statusColor }}
+                >
+                  {subsystemDiagnostics[selectedComponent].healthPercent}%
+                </span>
+              </div>
+              <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${subsystemDiagnostics[selectedComponent].healthPercent}%`,
+                    backgroundColor: subsystemDiagnostics[selectedComponent].statusColor
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Subsystem Telemetry Parameter Grid */}
+            <div className="grid grid-cols-2 gap-2 mt-2.5 pt-2 border-t border-white/10 font-mono text-[11px]">
+              {selectedComponent.startsWith('Motor_') && (
+                <>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">RPM Output</div>
+                    <div className="font-semibold text-cyan-300">{subsystemDiagnostics[selectedComponent].rpm} RPM</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">Stator Temp</div>
+                    <div className="font-semibold text-amber-300">{subsystemDiagnostics[selectedComponent].tempC}°C</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">Vibration (G)</div>
+                    <div className="font-semibold text-neutral-200">{subsystemDiagnostics[selectedComponent].vibrationG}G</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">PWM Drive</div>
+                    <div className="font-semibold text-emerald-300">Active</div>
+                  </div>
+                </>
+              )}
+
+              {selectedComponent === 'Battery_Pack' && (
+                <>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">Pack Voltage</div>
+                    <div className="font-semibold text-cyan-300">{subsystemDiagnostics[selectedComponent].voltage}V</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">Discharge Draw</div>
+                    <div className="font-semibold text-amber-300">{subsystemDiagnostics[selectedComponent].dischargeAmps}A</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">Cell Temp</div>
+                    <div className="font-semibold text-neutral-200">{subsystemDiagnostics[selectedComponent].tempC}°C</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">State of Charge</div>
+                    <div className="font-semibold text-emerald-300">{activeDroneState.battery}%</div>
+                  </div>
+                </>
+              )}
+
+              {selectedComponent === 'Avionics_IMU' && (
+                <>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">Gyro Drift</div>
+                    <div className="font-semibold text-cyan-300">{subsystemDiagnostics[selectedComponent].gyroDrift}</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">Mag Field Flux</div>
+                    <div className="font-semibold text-amber-300">{subsystemDiagnostics[selectedComponent].magField}</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">Attitude Lock</div>
+                    <div className="font-semibold text-emerald-300">6-DOF Precision</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">Kalman Filter</div>
+                    <div className="font-semibold text-neutral-200">Converged</div>
+                  </div>
+                </>
+              )}
+
+              {selectedComponent === 'ESC_SpeedController' && (
+                <>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">Junction Temp</div>
+                    <div className="font-semibold text-amber-300">{subsystemDiagnostics[selectedComponent].tempC}°C</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">PWM Duty</div>
+                    <div className="font-semibold text-cyan-300">{subsystemDiagnostics[selectedComponent].pwmDuty}</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">MOSFET Status</div>
+                    <div className="font-semibold text-emerald-300">Active High-Side</div>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-white/[0.04]">
+                    <div className="text-[9px] text-neutral-400 uppercase">DShot Protocol</div>
+                    <div className="font-semibold text-neutral-200">DShot600</div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Action Bar: Sync with Unity Bridge */}
+            {apiUrl && (
+              <button
+                onClick={() => handleInspectComponent(selectedComponent)}
+                disabled={isInspectingComponent}
+                className="w-full mt-3 py-1.5 px-3 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-medium text-[11px] flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98 disabled:opacity-50"
+              >
+                {isInspectingComponent ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Focusing Unity SceneView...</span>
+                  </>
+                ) : (
+                  <>
+                    <Crosshair className="w-3.5 h-3.5" />
+                    <span>Focus in Unity SceneView</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         )}
       </div>

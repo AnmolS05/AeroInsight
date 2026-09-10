@@ -29,4 +29,7 @@ router.post('/generate-swarm', unityController.createSwarmFlight);
 router.post('/blackbox/:id', validateFlightId, unityController.generateBlackBoxReport);
 router.post('/blackbox', unityController.generateBlackBoxReport);
 
+// Subsystem Component Diagnostics & Unity Inspection
+router.post('/component-inspect', unityController.inspectComponent);
+
 module.exports = router;

@@ -388,4 +388,45 @@ ${swarmData.wingmen.map((w) => `- **${w.callsign}:** Offset (${w.offsetMeters.x}
     }
 };
 
+/**
+ * Inspects a specific drone subsystem component (Motor 1-4, Battery, ESC, IMU),
+ * calculates empirical thermal stress and vibration diagnostics, and dispatches SceneView framing.
+ *
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ */
+exports.inspectComponent = async (req, res, next) => {
+    try {
+        const { componentName = 'Motor_1_FR', telemetryPoint = {}, anomalyDescription = '', flightId = 'LIVE' } = req.body || {};
+
+        const subsystemHealth = unityMcpService.calculateSubsystemHealth(telemetryPoint, anomalyDescription);
+        const targetSubsystem = subsystemHealth.subsystems[componentName] || {
+            name: componentName,
+            status: 'NOMINAL',
+            healthPercent: 95,
+        };
+
+        const bridgeResult = await unityMcpService.inspectDroneComponent(componentName, {
+            flightId,
+            status: targetSubsystem.status,
+            healthPercent: targetSubsystem.healthPercent,
+            rpm: targetSubsystem.rpm,
+            tempC: targetSubsystem.tempC,
+        });
+
+        res.json({
+            success: true,
+            componentName,
+            subsystem: targetSubsystem,
+            overallHealthScore: subsystemHealth.overallHealthScore,
+            status: subsystemHealth.status,
+            allSubsystems: subsystemHealth.subsystems,
+            bridge: bridgeResult,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 
