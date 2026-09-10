@@ -23,6 +23,7 @@ router.post('/simulate/:id', validateFlightId, unityController.simulatePhysics);
 
 // Synthetic Telemetry Generation
 router.post('/generate-synthetic', unityController.createSyntheticFlight);
+router.post('/generate-swarm', unityController.createSwarmFlight);
 
 // Black Box Flight Data Recorder (FDR) Reconstruction & Investigation
 router.post('/blackbox/:id', validateFlightId, unityController.generateBlackBoxReport);

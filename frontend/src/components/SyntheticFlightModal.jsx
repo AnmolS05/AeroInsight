@@ -8,7 +8,8 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Sparkles, PlaneTakeoff, AlertTriangle, Play, RefreshCw, 
-  Compass, Sun, Wind, Radio, Activity, Gauge, BatteryCharging, Zap 
+  Compass, Sun, Wind, Radio, Activity, Gauge, BatteryCharging, Zap,
+  Users, ShieldCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -130,6 +131,12 @@ export default function SyntheticFlightModal({ isOpen, onClose, onFlightCreated,
   const [onsetPercent, setOnsetPercent] = useState(65);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // Multi-Drone Swarm Configuration
+  const [isSwarmMode, setIsSwarmMode] = useState(false);
+  const [swarmCount, setSwarmCount] = useState(2); // 2 or 3
+  const [formation, setFormation] = useState('V-Formation');
+  const [separationMeters, setSeparationMeters] = useState(25);
+
   if (!isOpen) return null;
 
   const activePatternMeta = PATTERNS.find(p => p.id === pattern) || PATTERNS[0];
@@ -146,24 +153,47 @@ export default function SyntheticFlightModal({ isOpen, onClose, onFlightCreated,
 
   const handleGenerate = async () => {
     setIsGenerating(true);
-    const toastId = toast.loading('Executing synthetic flight simulation and ingesting telemetry...');
+    const toastId = toast.loading(
+      isSwarmMode
+        ? `Generating ${swarmCount}-UAV tactical swarm in ${formation}...`
+        : 'Executing synthetic flight simulation and ingesting telemetry...'
+    );
 
     try {
-      const res = await fetch(`${apiUrl}/api/unity/generate-synthetic`, {
+      const endpoint = isSwarmMode ? `${apiUrl}/api/unity/generate-swarm` : `${apiUrl}/api/unity/generate-synthetic`;
+      const payload = isSwarmMode
+        ? {
+            flightPattern: pattern,
+            injectedAnomaly: anomaly,
+            baseAltitudeMeters: altitude,
+            totalDurationSeconds: duration,
+            anomalyStartSecond: anomalyOnsetSec,
+            swarmCount,
+            formation,
+            separationMeters
+          }
+        : {
+            flightPattern: pattern,
+            injectedAnomaly: anomaly,
+            baseAltitudeMeters: altitude,
+            totalDurationSeconds: duration,
+            anomalyStartSecond: anomalyOnsetSec
+          };
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          flightPattern: pattern,
-          injectedAnomaly: anomaly,
-          baseAltitudeMeters: altitude,
-          totalDurationSeconds: duration,
-          anomalyStartSecond: anomalyOnsetSec
-        })
+        body: JSON.stringify(payload)
       });
 
       const json = await res.json();
       if (json.success) {
-        toast.success(`Synthetic mission '${json.flightId}' generated successfully!`, { id: toastId });
+        toast.success(
+          isSwarmMode
+            ? `Swarm mission '${json.flightId}' deployed with ${swarmCount} coordinated UAVs!`
+            : `Synthetic mission '${json.flightId}' generated successfully!`,
+          { id: toastId }
+        );
         if (onFlightCreated) {
           onFlightCreated(json.flightId);
         }
@@ -231,6 +261,93 @@ export default function SyntheticFlightModal({ isOpen, onClose, onFlightCreated,
               ))}
             </div>
           </div>
+
+          {/* Mission Architecture Selector: Single UAV vs Tactical Swarm */}
+          <div className="flex items-center gap-2 p-1 rounded-xl bg-white/[0.04] border border-white/10 text-xs">
+            <button
+              onClick={() => setIsSwarmMode(false)}
+              className={`flex-1 py-1.5 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
+                !isSwarmMode
+                  ? 'bg-purple-600/30 text-purple-200 border border-purple-500/40 shadow-sm'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <PlaneTakeoff className="w-3.5 h-3.5" />
+              <span>Single UAV Mission</span>
+            </button>
+            <button
+              onClick={() => setIsSwarmMode(true)}
+              className={`flex-1 py-1.5 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
+                isSwarmMode
+                  ? 'bg-purple-600/30 text-purple-200 border border-purple-500/40 shadow-sm'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-purple-400" />
+              <span>Tactical Swarm / Fleet Mode</span>
+            </button>
+          </div>
+
+          {/* Swarm Specific Formation Controls */}
+          {isSwarmMode && (
+            <div className="p-4 rounded-xl bg-purple-950/20 border border-purple-500/30 space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-purple-400" />
+                  <span className="font-semibold text-white">Tactical Formation Geometry</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  DECONFLICTED
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Formation Type */}
+                <div className="space-y-1">
+                  <label className="text-[11px] text-neutral-300">Formation Shape</label>
+                  <select
+                    value={formation}
+                    onChange={(e) => setFormation(e.target.value)}
+                    className="w-full bg-[#151620] border border-white/10 rounded-xl px-2.5 py-1.5 text-white focus:outline-none focus:border-purple-400"
+                  >
+                    <option value="V-Formation">V-Formation (Wedge)</option>
+                    <option value="Echelon">Echelon Right</option>
+                    <option value="ColumnTrail">Column Trail</option>
+                  </select>
+                </div>
+
+                {/* UAV Swarm Count */}
+                <div className="space-y-1">
+                  <label className="text-[11px] text-neutral-300">Swarm Fleet Size</label>
+                  <select
+                    value={swarmCount}
+                    onChange={(e) => setSwarmCount(parseInt(e.target.value, 10))}
+                    className="w-full bg-[#151620] border border-white/10 rounded-xl px-2.5 py-1.5 text-white focus:outline-none focus:border-purple-400"
+                  >
+                    <option value={2}>2 UAVs (Lead + Wingman)</option>
+                    <option value={3}>3 UAVs (Tactical Trio)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Separation Distance Slider */}
+              <div className="bg-white/5 border border-white/5 rounded-xl p-2.5 space-y-1.5">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-neutral-300">Inter-UAV Separation Target</span>
+                  <span className="text-purple-300 font-mono font-semibold">{separationMeters}m</span>
+                </div>
+                <input
+                  type="range"
+                  min="15"
+                  max="60"
+                  step="5"
+                  value={separationMeters}
+                  onChange={(e) => setSeparationMeters(parseInt(e.target.value, 10))}
+                  className="w-full accent-purple-400 h-1.5 bg-white/10 rounded-lg cursor-pointer"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Form Options */}
           <div className="space-y-4 text-xs">

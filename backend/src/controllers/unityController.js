@@ -305,3 +305,87 @@ exports.generateBlackBoxReport = async (req, res, next) => {
     }
 };
 
+/**
+ * Generates a multi-drone tactical swarm mission with synchronized formation telemetry and deconfliction envelopes.
+ *
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ */
+exports.createSwarmFlight = async (req, res, next) => {
+    try {
+        const options = req.body || {};
+        const swarmData = unityMcpService.generateSwarmMissionTelemetry(options);
+        const flightId = `SWARM_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+
+        const client = await db.connect();
+        let inTransaction = false;
+
+        try {
+            await client.query('BEGIN');
+            inTransaction = true;
+
+            // 1. Insert Flight Record
+            await client.query('INSERT INTO flights (id) VALUES ($1)', [flightId]);
+
+            // 2. Insert Lead Telemetry
+            const leaderPts = swarmData.leader;
+            const latitudes = leaderPts.map((p) => p.latitude);
+            const longitudes = leaderPts.map((p) => p.longitude);
+            const altitudes = leaderPts.map((p) => p.altitude);
+            const batteries = leaderPts.map((p) => p.battery);
+            const issues = leaderPts.map((p) => p.issue || 'none');
+            const timestamps = leaderPts.map((p) => p.timestamp);
+
+            await client.query(
+                `INSERT INTO telemetry (flight_id, latitude, longitude, altitude, battery, issue, timestamp)
+                 SELECT $1, unnest($2::real[]), unnest($3::real[]), unnest($4::real[]), unnest($5::real[]), unnest($6::text[]), unnest($7::text[])`,
+                [flightId, latitudes, longitudes, altitudes, batteries, issues, timestamps]
+            );
+
+            // 3. Initial ML Assessment
+            const baselineRisk = mlService.predictRisk(leaderPts);
+            const swarmReport = `# Swarm Mission Log: ${flightId}
+## Tactical Formation
+- **Formation Geometry:** ${swarmData.deconfliction.formation}
+- **Active UAVs:** ${swarmData.deconfliction.activeUAVCount}
+- **Separation Target:** ${swarmData.deconfliction.targetSeparationMeters}m
+- **Airspace Status:** ${swarmData.deconfliction.airspaceStatus}
+
+## Wingman UAV Units
+${swarmData.wingmen.map((w) => `- **${w.callsign}:** Offset (${w.offsetMeters.x}m, ${w.offsetMeters.y}m, ${w.offsetMeters.z}m) relative to Leader`).join('\n')}
+
+## Risk Assessment
+- **Risk Level:** ${baselineRisk.riskLevel}
+- **Risk Score:** ${(baselineRisk.riskScore * 100).toFixed(1)}%`;
+
+            await client.query(
+                'INSERT INTO reports (flight_id, report_text) VALUES ($1, $2)',
+                [flightId, swarmReport]
+            );
+
+            await client.query('COMMIT');
+            inTransaction = false;
+            client.release();
+
+            res.status(201).json({
+                success: true,
+                flightId,
+                message: `Swarm formation flight '${flightId}' successfully created and stored.`,
+                data: swarmData,
+            });
+        } catch (dbErr) {
+            if (inTransaction) {
+                try {
+                    await client.query('ROLLBACK');
+                } catch {}
+            }
+            client.release();
+            throw dbErr;
+        }
+    } catch (err) {
+        next(err);
+    }
+};
+
+

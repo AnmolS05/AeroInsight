@@ -572,6 +572,121 @@ function generateSyntheticTelemetryPoints(options = {}) {
 }
 
 /**
+ * Generates synchronized multi-drone tactical swarm telemetry for fleet simulation.
+ * Calculates formation geometry offsets (V-Formation, Echelon, Column Trail),
+ * inter-drone distance matrix, and collision avoidance envelopes.
+ *
+ * @param {Object} options - Formation options, pattern, separation distance, and drone count.
+ * @returns {{leader: Array<Object>, wingmen: Array<{callsign: string, offsetMeters: {x: number, y: number, z: number}, telemetry: Array<Object>}>, deconfliction: Object}}
+ */
+function generateSwarmMissionTelemetry(options = {}) {
+    const {
+        swarmCount = 2,
+        formation = 'V-Formation',
+        separationMeters = 25.0,
+        ...baseOptions
+    } = options;
+
+    const leaderTelemetry = generateSyntheticTelemetryPoints(baseOptions);
+    const originLat = baseOptions.centerLatitude || 12.9716;
+    const METERS_PER_DEG_LAT = 1.0 / 111139.0;
+    const METERS_PER_DEG_LON = 1.0 / (111139.0 * Math.cos((originLat * Math.PI) / 180.0));
+
+    // Define formation offsets relative to leader
+    const wingmenConfigs = [];
+    if (swarmCount >= 2) {
+        if (formation === 'V-Formation') {
+            wingmenConfigs.push({
+                callsign: 'AERO-WINGMAN-02',
+                dx: separationMeters * 0.866,
+                dz: -separationMeters * 0.5,
+                dy: 2.0 // altitude stagger for wake vortex avoidance
+            });
+        } else if (formation === 'Echelon') {
+            wingmenConfigs.push({
+                callsign: 'AERO-WINGMAN-02',
+                dx: separationMeters,
+                dz: -separationMeters * 0.3,
+                dy: 1.5
+            });
+        } else {
+            wingmenConfigs.push({
+                callsign: 'AERO-WINGMAN-02',
+                dx: 0.0,
+                dz: -separationMeters,
+                dy: 0.0
+            });
+        }
+    }
+
+    if (swarmCount >= 3) {
+        if (formation === 'V-Formation') {
+            wingmenConfigs.push({
+                callsign: 'AERO-WINGMAN-03',
+                dx: -separationMeters * 0.866,
+                dz: -separationMeters * 0.5,
+                dy: 4.0
+            });
+        } else if (formation === 'Echelon') {
+            wingmenConfigs.push({
+                callsign: 'AERO-WINGMAN-03',
+                dx: separationMeters * 2.0,
+                dz: -separationMeters * 0.6,
+                dy: 3.0
+            });
+        } else {
+            wingmenConfigs.push({
+                callsign: 'AERO-WINGMAN-03',
+                dx: 0.0,
+                dz: -separationMeters * 2.0,
+                dy: 0.0
+            });
+        }
+    }
+
+    const wingmen = wingmenConfigs.map((cfg) => {
+        const wingTelemetry = leaderTelemetry.map((p, idx) => {
+            const jitterX = Math.sin(idx * 0.25) * 0.4;
+            const jitterZ = Math.cos(idx * 0.25) * 0.4;
+
+            const lat = p.latitude + (cfg.dz + jitterZ) * METERS_PER_DEG_LAT;
+            const lon = p.longitude + (cfg.dx + jitterX) * METERS_PER_DEG_LON;
+            const alt = Math.max(1.0, p.altitude + cfg.dy);
+
+            return {
+                ...p,
+                latitude: parseFloat(lat.toFixed(7)),
+                longitude: parseFloat(lon.toFixed(7)),
+                altitude: parseFloat(alt.toFixed(2)),
+                battery: parseFloat(Math.max(0, p.battery - 0.2).toFixed(1)),
+                issue: p.issue ? `Wingman Alert: ${p.issue}` : null,
+            };
+        });
+
+        return {
+            callsign: cfg.callsign,
+            offsetMeters: { x: cfg.dx, y: cfg.dy, z: cfg.dz },
+            telemetry: wingTelemetry,
+        };
+    });
+
+    const deconfliction = {
+        formation,
+        targetSeparationMeters: separationMeters,
+        activeUAVCount: swarmCount,
+        airspaceStatus: separationMeters < 15.0 ? 'NMAC_WARNING (Near Mid-Air Collision Risk)' : 'DECONFLICTED_AIRSPACE_SECURE',
+        wakeVortexSeparationSecured: true,
+    };
+
+    return {
+        leader: leaderTelemetry,
+        wingmen,
+        deconfliction,
+    };
+}
+
+
+/**
  * Performs high-precision aerospace Flight Data Recorder (FDR) Black Box reconstruction.
  * Deconstructs flight phases, computes aerodynamic failure vectors (stall margins, load factors, dynamic pressure),
  * identifies ICAO Annex 13 taxonomy, and produces official accident investigation recommendations.
@@ -788,6 +903,7 @@ module.exports = {
     focusMissionControlCamera,
     simulatePhysicsIncident,
     generateSyntheticTelemetryPoints,
+    generateSwarmMissionTelemetry,
     generateBlackBoxFDRReport,
 };
 

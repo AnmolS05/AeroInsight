@@ -33,7 +33,8 @@ import {
   Layers,
   Activity,
   ShieldAlert,
-  Wind
+  Wind,
+  Users
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -66,6 +67,7 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
   const [useSpline, setUseSpline] = useState(true);
   const [showObstacles, setShowObstacles] = useState(true);
   const [showAtmosphere, setShowAtmosphere] = useState(true);
+  const [showSwarmWingman, setShowSwarmWingman] = useState(false);
   const [unitySyncEnabled, setUnitySyncEnabled] = useState(false);
   const [isSyncingUnity, setIsSyncingUnity] = useState(false);
 
@@ -337,6 +339,8 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
         setShowObstacles((prev) => !prev);
       } else if (e.key === 'w' || e.key === 'W') {
         setShowAtmosphere((prev) => !prev);
+      } else if (e.key === 'f' || e.key === 'F') {
+        setShowSwarmWingman((prev) => !prev);
       }
     };
 
@@ -743,8 +747,66 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
         ctx.stroke();
         ctx.setLineDash([]);
       }
+
+      // Draw Tactical Swarm Wingman Drone (Concept 3 & 4)
+      if (showSwarmWingman) {
+        const radHeading = (currentA.heading * Math.PI) / 180;
+        const wingOffsetRight = 0.18;
+        const wingOffsetBack = -0.14;
+        const wingAltStagger = 0.04;
+
+        const wingNormX = droneNormX + Math.cos(radHeading) * wingOffsetRight - Math.sin(radHeading) * wingOffsetBack;
+        const wingNormZ = droneNormZ + Math.sin(radHeading) * wingOffsetRight + Math.cos(radHeading) * wingOffsetBack;
+        const wingNormY = droneNormY + wingAltStagger;
+
+        const wingProj = project(wingNormX, wingNormY, wingNormZ);
+        if (wingProj.visible) {
+          // Inter-drone formation separation link
+          ctx.strokeStyle = 'rgba(255, 214, 10, 0.35)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(liveDroneProj.sx, liveDroneProj.sy);
+          ctx.lineTo(wingProj.sx, wingProj.sy);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Separation distance tag
+          const midX = (liveDroneProj.sx + wingProj.sx) / 2;
+          const midY = (liveDroneProj.sy + wingProj.sy) / 2;
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+          ctx.fillRect(midX - 18, midY - 8, 36, 14);
+          ctx.fillStyle = '#ffd60a';
+          ctx.font = '9px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText('25.0m', midX, midY + 2);
+
+          // Wingman Drone Marker (Gold)
+          ctx.shadowColor = '#ffd60a';
+          ctx.shadowBlur = 12;
+          ctx.fillStyle = '#ffd60a';
+          ctx.beginPath();
+          ctx.arc(wingProj.sx, wingProj.sy, 5.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Wingman Heading Indicator
+          const wingHeadX = wingProj.sx + Math.sin(radHeading) * 12;
+          const wingHeadY = wingProj.sy - Math.cos(radHeading) * 12;
+          ctx.strokeStyle = '#ffd60a';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(wingProj.sx, wingProj.sy);
+          ctx.lineTo(wingHeadX, wingHeadY);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(wingProj.sx, wingProj.sy, 9, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+      }
     }
-  }, [pitch, yaw, zoom, cameraMode, waypoints3D, splineTrajectory, proceduralObstacles, playbackProgress, showVectors, showObstacles, useSpline]);
+  }, [pitch, yaw, zoom, cameraMode, waypoints3D, splineTrajectory, proceduralObstacles, playbackProgress, showVectors, showObstacles, showAtmosphere, showSwarmWingman, useSpline]);
 
   // Mouse Orbiting & Dragging
   const handleMouseDown = (e) => {
@@ -918,6 +980,21 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
           >
             <Zap className="w-3 h-3 text-amber-400" />
             <span className="hidden sm:inline">Vectors</span>
+          </button>
+
+          {/* Tactical Swarm Wingman Toggle */}
+          <button
+            onClick={() => {
+              setShowSwarmWingman((prev) => !prev);
+              toast(showSwarmWingman ? 'Swarm Wingman hidden' : 'Tactical Swarm Wingman formation engaged', { icon: '🛸', duration: 1200 });
+            }}
+            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 ${
+              showSwarmWingman ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40' : 'text-neutral-400 hover:text-white'
+            }`}
+            title="Toggle Tactical Swarm Wingman Formation & Link (F)"
+          >
+            <Users className="w-3 h-3 text-yellow-400" />
+            <span className="hidden sm:inline">Swarm</span>
           </button>
 
           {/* Unity Sync Toggle (Concept 4) */}
