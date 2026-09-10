@@ -69,6 +69,11 @@ function detectIntent(text) {
         return { type: 'FOCUS_CAMERA' };
     }
 
+    // 5. Black Box FDR Investigation
+    if (lower.includes('black box') || lower.includes('blackbox') || lower.includes('fdr') || lower.includes('flight recorder') || lower.includes('probable cause') || lower.includes('investigate') || lower.includes('incident report')) {
+        return { type: 'BLACKBOX_FDR_ANALYSIS' };
+    }
+
     return null;
 }
 
@@ -218,6 +223,53 @@ This flight record was synthetically generated via the AeroInsight Simulation En
                 answer: `Dispatched Unity camera focus directive to orbit anomaly at ${targetPos.y}m altitude. Dual-screen viewport synchronized.`,
                 action: 'FOCUS_CAMERA',
                 actionPayload: cameraResult
+            });
+        }
+
+        // Action 5: Black Box FDR Investigation
+        if (intent && intent.type === 'BLACKBOX_FDR_ANALYSIS') {
+            let pts = telemetry;
+            if ((!pts || pts.length === 0) && flightId) {
+                try {
+                    const dbRes = await db.query(
+                        'SELECT latitude, longitude, altitude, battery, issue, timestamp FROM telemetry WHERE flight_id = $1 ORDER BY id ASC',
+                        [flightId]
+                    );
+                    if (dbRes && dbRes.rows) pts = dbRes.rows;
+                } catch {
+                    // Non-fatal if DB offline
+                }
+            }
+
+            if (!pts || pts.length === 0) {
+                return res.status(200).json({
+                    answer: 'Flight Data Recorder (FDR) memory cannot be extracted because no telemetry is loaded for this flight.',
+                    action: null
+                });
+            }
+
+            const fdrReport = await unityMcpService.generateBlackBoxFDRReport(flightId || 'active-flight', pts);
+
+            const summary = `### 🛩️ Flight Data Recorder (FDR) Interrogation Briefing: ${flightId || 'Active Mission'}
+**Classification:** \`${fdrReport.incidentClassification.criticalityLevel}\`  
+**ICAO Occurrence Category:** \`${fdrReport.incidentClassification.icaoTaxonomy}\`  
+**Probable Cause:** ${fdrReport.incidentClassification.probableCause}
+
+#### Key Aerodynamic Telemetry Vectors at Incident:
+- **Peak Descent Velocity:** ${fdrReport.aerodynamicFailureVectors.peakDescentRateMps} m/s
+- **Dynamic Pressure (q̄):** ${fdrReport.aerodynamicFailureVectors.peakDynamicPressurePascals} Pa
+- **Load Factor (G):** ${fdrReport.aerodynamicFailureVectors.peakLoadFactorG} G
+- **Minimum Stall Margin:** ${fdrReport.aerodynamicFailureVectors.minimumStallMarginPct}%
+
+#### Airworthiness Action Items:
+${fdrReport.airworthinessRecommendations.map((rec) => `- ${rec}`).join('\n')}
+
+*The incident coordinates have been localized and dispatched to the 3D Digital Twin environment.*`;
+
+            return res.status(200).json({
+                answer: summary,
+                action: 'OPEN_BLACKBOX',
+                actionPayload: fdrReport
             });
         }
 

@@ -57,9 +57,36 @@ namespace AeroInsight.Simulation
         public float currentBatteryLevel = 100f;
         public bool isSimulating = false;
 
+        /// <summary>
+        /// Convenience property for live bridge access.
+        /// </summary>
+        public float windShearSpeed
+        {
+            get => config.windSpeedKnots;
+            set => config.windSpeedKnots = value;
+        }
+
+        /// <summary>
+        /// Convenience property for motor rotor cutoff loss percentage.
+        /// </summary>
+        public float motorRotorCutoffLossPercent
+        {
+            get => config.thrustDegradationPercent;
+            set => config.thrustDegradationPercent = value;
+        }
+
         private Rigidbody _rb;
         private float _simulationTimer = 0f;
         private const float GRAVITY = 9.81f;
+
+        /// <summary>
+        /// Triggers an immediate physics failure scenario in the active scene.
+        /// </summary>
+        public void TriggerFailure()
+        {
+            config.triggerSecond = 0; // Trigger immediately
+            StartPhysicsReconstruction(null);
+        }
 
         private void Awake()
         {
@@ -207,6 +234,25 @@ namespace AeroInsight.Simulation
             };
 
             return JsonUtility.ToJson(container);
+        }
+
+        private void OnDrawGizmos()
+        {
+            if (!Application.isPlaying && !isSimulating) return;
+
+            // Draw Wind Shear Vector Arrow in SceneView
+            Gizmos.color = Color.cyan;
+            Vector3 dronePos = transform.position;
+            Vector3 windVector = config.windDirection.normalized * (config.windSpeedKnots * 0.25f);
+            Gizmos.DrawRay(dronePos, windVector);
+            Gizmos.DrawWireSphere(dronePos + windVector, 0.4f);
+
+            // Draw Failure Hazard Sphere if anomaly active
+            if (_simulationTimer >= config.triggerSecond && config.failureType != "None")
+            {
+                Gizmos.color = new Color(1f, 0.2f, 0.2f, 0.45f);
+                Gizmos.DrawWireSphere(dronePos, 2.5f);
+            }
         }
     }
 }

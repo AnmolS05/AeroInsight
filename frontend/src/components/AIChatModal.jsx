@@ -21,7 +21,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   Compass,
-  ArrowRight
+  ArrowRight,
+  FileText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -269,6 +270,17 @@ export default function AIChatModal({
                   </button>
                 )}
 
+                {msg.action === 'OPEN_BLACKBOX' && onOpenDigitalTwin && (
+                  <button
+                    onClick={onOpenDigitalTwin}
+                    className="mt-3 w-full py-2 px-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 font-medium flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
+                  >
+                    <FileText size={13} />
+                    <span>Open Flight Data Recorder (FDR) Investigation</span>
+                    <ArrowRight size={13} />
+                  </button>
+                )}
+
                 <div className="mt-1.5 text-[9px] text-neutral-500 text-right">
                   {msg.timestamp}
                 </div>
@@ -296,6 +308,7 @@ export default function AIChatModal({
         <div className="px-6 py-2 border-t border-white/[0.04] bg-white/[0.01] flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
           <span className="text-[10px] text-neutral-500 uppercase tracking-wider shrink-0 mr-1">Prompts:</span>
           {[
+            { label: '🛩️ Interrogate Black Box', query: 'Interrogate the flight data recorder black box and identify probable cause' },
             { label: '🚀 Reconstruct in 3D', query: 'Reconstruct this flight into a 3D digital twin in Unity' },
             { label: '🌪️ Simulate 35kt Crosswind', query: 'Simulate 35 knots crosswind with motor cutoff physics' },
             { label: '⚡ Solar Farm Scan', query: 'Generate a 60-second synthetic flight inspecting a solar array' },

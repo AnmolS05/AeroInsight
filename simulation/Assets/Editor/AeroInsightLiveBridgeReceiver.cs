@@ -157,6 +157,12 @@ namespace AeroInsight.Editor
                     _mainThreadQueue.Enqueue(() => ExecutePhysicsSimulation(body));
                     responseJson = "{\"success\":true,\"message\":\"Physics simulation parameters applied.\"}";
                 }
+                else if (path == "/api/blackbox" && request.HttpMethod == "POST")
+                {
+                    string body = ReadRequestBody(request);
+                    _mainThreadQueue.Enqueue(() => ExecuteBlackBoxInvestigation(body));
+                    responseJson = "{\"success\":true,\"message\":\"Black Box incident coordinates localized and marked in Unity scene.\"}";
+                }
                 else
                 {
                     statusCode = 404;
@@ -317,6 +323,61 @@ namespace AeroInsight.Editor
             catch (Exception ex)
             {
                 Debug.LogWarning($"[AeroInsight MCP] Physics simulation error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Localizes the Black Box FDR failure coordinate, instantiates an accident investigation marker, and aligns SceneView.
+        /// </summary>
+        private static void ExecuteBlackBoxInvestigation(string jsonBody)
+        {
+            try
+            {
+                float x = 0f, y = 25f, z = 0f;
+                var matchX = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"x\"\\s*:\\s*(-?[0-9\\.]+)");
+                var matchY = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"y\"\\s*:\\s*(-?[0-9\\.]+)");
+                var matchZ = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"z\"\\s*:\\s*(-?[0-9\\.]+)");
+
+                if (matchX.Success && float.TryParse(matchX.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float px)) x = px;
+                if (matchY.Success && float.TryParse(matchY.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float py)) y = py;
+                if (matchZ.Success && float.TryParse(matchZ.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float pz)) z = pz;
+
+                Vector3 incidentPos = new Vector3(x, y, z);
+
+                // Create or find Black Box Incident Marker
+                GameObject fdrMarker = GameObject.Find("AeroInsight_FDR_IncidentMarker");
+                if (fdrMarker == null)
+                {
+                    fdrMarker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                    fdrMarker.name = "AeroInsight_FDR_IncidentMarker";
+                    fdrMarker.transform.localScale = new Vector3(2.5f, 2.5f, 2.5f);
+
+                    var renderer = fdrMarker.GetComponent<MeshRenderer>();
+                    if (renderer != null)
+                    {
+                        Material fdrMat = new Material(Shader.Find("Standard"));
+                        fdrMat.color = new Color(1f, 0.35f, 0.05f, 0.9f); // High-viz flight recorder orange
+                        fdrMat.EnableKeyword("_EMISSION");
+                        fdrMat.SetColor("_EmissionColor", new Color(1f, 0.25f, 0f) * 1.5f);
+                        renderer.material = fdrMat;
+                    }
+                }
+
+                fdrMarker.transform.position = incidentPos;
+
+                // Frame SceneView
+                SceneView sceneView = SceneView.lastActiveSceneView;
+                if (sceneView != null)
+                {
+                    sceneView.LookAt(incidentPos, Quaternion.Euler(35, 30, 0), 30f);
+                    sceneView.Repaint();
+                }
+
+                Debug.Log($"[AeroInsight MCP] Black Box incident marker placed at: {incidentPos}.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[AeroInsight MCP] Black Box marker positioning error: {ex.Message}");
             }
         }
     }

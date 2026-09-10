@@ -571,10 +571,223 @@ function generateSyntheticTelemetryPoints(options = {}) {
     return points;
 }
 
+/**
+ * Performs high-precision aerospace Flight Data Recorder (FDR) Black Box reconstruction.
+ * Deconstructs flight phases, computes aerodynamic failure vectors (stall margins, load factors, dynamic pressure),
+ * identifies ICAO Annex 13 taxonomy, and produces official accident investigation recommendations.
+ *
+ * @param {string} flightId - Flight identifier.
+ * @param {Array<Object>} telemetryPoints - Logged flight telemetry points.
+ * @param {Object} [anomalyContext={}] - Optional user or detector anomaly context.
+ * @returns {Promise<Object>} Formatted FDR Black Box investigation report.
+ */
+async function generateBlackBoxFDRReport(flightId, telemetryPoints = [], anomalyContext = {}) {
+    if (!Array.isArray(telemetryPoints) || telemetryPoints.length === 0) {
+        throw new Error('Valid flight telemetry is required to interrogate the Flight Data Recorder.');
+    }
+
+    const AIR_DENSITY = 1.225; // kg/m^3 (ISA standard)
+    const GRAVITY = 9.80665;
+    const DRONE_MASS_KG = 2.5;
+    const STALL_SPEED_MPS = 4.2;
+
+    const originLat = telemetryPoints[0].latitude;
+    const originLon = telemetryPoints[0].longitude;
+    const METERS_PER_DEG_LAT = 111139.0;
+    const METERS_PER_DEG_LON = 111139.0 * Math.cos((originLat * Math.PI) / 180.0);
+
+    let maxVelocity = 0.0;
+    let maxDescentRate = 0.0;
+    let maxDynamicPressure = 0.0;
+    let peakGLoad = 1.0;
+    let minStallMargin = 1.0;
+    let anomalyWaypoint = null;
+    let anomalyIndex = -1;
+
+    // Time-series aerodynamic vector decomposition
+    const timeSeriesVectors = [];
+    const sequenceOfEvents = [];
+
+    for (let i = 0; i < telemetryPoints.length; i++) {
+        const pt = telemetryPoints[i];
+        const isAnomaly = Boolean(pt.issue && pt.issue.toLowerCase() !== 'none' && pt.issue.trim() !== '');
+
+        const x = (pt.longitude - originLon) * METERS_PER_DEG_LON;
+        const y = pt.altitude;
+        const z = (pt.latitude - originLat) * METERS_PER_DEG_LAT;
+
+        let vx = 0, vy = 0, vz = 0, dt = 1.0;
+
+        if (i > 0) {
+            const prev = telemetryPoints[i - 1];
+            const prevX = (prev.longitude - originLon) * METERS_PER_DEG_LON;
+            const prevY = prev.altitude;
+            const prevZ = (prev.latitude - originLat) * METERS_PER_DEG_LAT;
+
+            const tCurrent = new Date(pt.timestamp).getTime();
+            const tPrev = new Date(prev.timestamp).getTime();
+            dt = Math.max(0.2, (tCurrent - tPrev) / 1000.0) || 1.0;
+
+            vx = (x - prevX) / dt;
+            vy = (y - prevY) / dt;
+            vz = (z - prevZ) / dt;
+        }
+
+        const vGround = Math.sqrt(vx * vx + vz * vz);
+        const v3D = Math.sqrt(vx * vx + vy * vy + vz * vz);
+        const dynamicPressure = 0.5 * AIR_DENSITY * (v3D * v3D);
+        const flightPathAngleDeg = (Math.atan2(vy, Math.max(0.1, vGround)) * 180.0) / Math.PI;
+        const gLoad = 1.0 + (vy / (GRAVITY * dt));
+        const stallMargin = Math.max(0.0, 1.0 - (STALL_SPEED_MPS / Math.max(0.1, v3D)));
+
+        if (v3D > maxVelocity) maxVelocity = v3D;
+        if (vy < maxDescentRate) maxDescentRate = vy;
+        if (dynamicPressure > maxDynamicPressure) maxDynamicPressure = dynamicPressure;
+        if (Math.abs(gLoad) > Math.abs(peakGLoad)) peakGLoad = gLoad;
+        if (stallMargin < minStallMargin) minStallMargin = stallMargin;
+
+        if (isAnomaly && !anomalyWaypoint) {
+            anomalyWaypoint = { ...pt, index: i, x, y, z, vGround, vy, v3D, gLoad };
+            anomalyIndex = i;
+        }
+
+        timeSeriesVectors.push({
+            index: i,
+            timeOffsetSec: i * dt,
+            position: { x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)), z: parseFloat(z.toFixed(2)) },
+            vGroundMps: parseFloat(vGround.toFixed(2)),
+            vDescentMps: parseFloat((-vy).toFixed(2)),
+            dynamicPressurePa: parseFloat(dynamicPressure.toFixed(1)),
+            gLoad: parseFloat(gLoad.toFixed(2)),
+            stallMarginPct: parseFloat((stallMargin * 100).toFixed(1)),
+            battery: pt.battery,
+            issue: pt.issue || null,
+        });
+    }
+
+    // Sequence of Events construction
+    sequenceOfEvents.push({
+        event: 'FDR_LOG_INITIALIZED',
+        timeOffsetSec: 0.0,
+        description: 'Flight recorder initiated. Quadrotor avionics nominal, GPS lock acquired.',
+        severity: 'NOMINAL',
+    });
+
+    if (anomalyWaypoint) {
+        sequenceOfEvents.push({
+            event: 'ANOMALY_VECTOR_EXCURSION',
+            timeOffsetSec: parseFloat((anomalyIndex * 1.0).toFixed(1)),
+            description: `Telemetry alarm triggered: "${anomalyWaypoint.issue}". Vertical descent velocity ${Math.abs(anomalyWaypoint.vy).toFixed(1)} m/s, G-Load ${anomalyWaypoint.gLoad.toFixed(2)}G.`,
+            severity: 'HAZARD',
+            coordinates: { x: parseFloat(anomalyWaypoint.x.toFixed(2)), y: parseFloat(anomalyWaypoint.y.toFixed(2)), z: parseFloat(anomalyWaypoint.z.toFixed(2)) },
+        });
+    }
+
+    const lastPt = timeSeriesVectors[timeSeriesVectors.length - 1];
+    sequenceOfEvents.push({
+        event: 'MISSION_RECORDER_CONCLUDED',
+        timeOffsetSec: lastPt.timeOffsetSec,
+        description: `Flight concluded at altitude ${lastPt.position.y}m AGL with battery ${lastPt.battery}%.`,
+        severity: lastPt.position.y <= 1.5 ? 'LANDED_OR_TERMINAL' : 'IN_FLIGHT',
+    });
+
+    // ICAO Annex 13 Criticality & Taxonomy Classification
+    let criticalityLevel = 'CRITICAL_C2 (MINOR)';
+    let icaoTaxonomy = 'ARC - Abnormal Runway Contact / Ground Jitter';
+    let probableCause = 'Intermittent telemetry variation within safe flight envelope bounds.';
+
+    if (anomalyWaypoint) {
+        const issueStr = (anomalyWaypoint.issue || '').toLowerCase();
+        if (issueStr.includes('motor') || issueStr.includes('rotor') || issueStr.includes('propeller')) {
+            criticalityLevel = 'CRITICAL_C4 (HAZARDOUS)';
+            icaoTaxonomy = 'SCF-PP - System/Component Failure (Powerplant)';
+            probableCause = 'Uncommanded loss of propulsion authority on rotor manifold, inducing asymmetrical yaw-roll divergence.';
+        } else if (issueStr.includes('battery') || issueStr.includes('voltage') || issueStr.includes('sag')) {
+            criticalityLevel = 'CRITICAL_C4 (HAZARDOUS)';
+            icaoTaxonomy = 'SCF-SYS - Electrochemical Bus Collapse & Low Voltage Incursion';
+            probableCause = 'Severe LiPo pack internal impedance spike leading to voltage cutoff threshold breach.';
+        } else if (issueStr.includes('stall') || issueStr.includes('altitude drop') || Math.abs(maxDescentRate) > 8.0) {
+            criticalityLevel = 'CRITICAL_C5 (CATASTROPHIC)';
+            icaoTaxonomy = 'LOC-I - Loss of Control Inflight & Vortex Ring State';
+            probableCause = 'Rapid descent rate exceeded induced airflow velocity, resulting in aerodynamic vortex ring state stall.';
+        } else if (issueStr.includes('wind') || issueStr.includes('shear') || issueStr.includes('gust')) {
+            criticalityLevel = 'CRITICAL_C3 (MAJOR)';
+            icaoTaxonomy = 'TURB - Low-Level Atmospheric Wind Shear Encounter';
+            probableCause = 'Microburst crosswind vector exceeded roll stabilization margin of the flight control loop.';
+        } else {
+            criticalityLevel = 'CRITICAL_C3 (MAJOR)';
+            icaoTaxonomy = 'NAV - Navigation & Compass Drift Discrepancy';
+            probableCause = `In-flight anomaly detected: ${anomalyWaypoint.issue}. Sensor disagreement between magnetometer and GPS state estimator.`;
+        }
+    }
+
+    // Airworthiness Directives (AD) & Safety Recommendations
+    const airworthinessRecommendations = [
+        'Perform static motor thrust and ESC telemetry current calibration before next sortie.',
+        'Inspect airframe arms for micro-fractures and motor bearing radial play.',
+        'Update flight controller return-to-home minimum clearance ceiling to ≥ 45m AGL.',
+        'Verify LiPo battery cell balance and internal resistance (mΩ/cell ≤ 4.5).',
+    ];
+
+    // Dispatch incident coordinates to Unity Editor if bridge active
+    const bridgeStatus = await checkBridgeStatus(1000);
+    let unityDispatched = false;
+
+    if (bridgeStatus.connected && anomalyWaypoint) {
+        try {
+            await dispatchBridgeCommand('/api/blackbox', {
+                flightId,
+                x: anomalyWaypoint.x,
+                y: anomalyWaypoint.y,
+                z: anomalyWaypoint.z,
+                criticalityLevel,
+                issue: anomalyWaypoint.issue,
+            }, 3000);
+            unityDispatched = true;
+        } catch {
+            unityDispatched = false;
+        }
+    }
+
+    return {
+        flightId,
+        fdrIngestionTimestamp: new Date().toISOString(),
+        bridgeConnected: bridgeStatus.connected,
+        unityDispatched,
+        incidentClassification: {
+            criticalityLevel,
+            icaoTaxonomy,
+            probableCause,
+        },
+        aerodynamicFailureVectors: {
+            peakVelocityMps: parseFloat(maxVelocity.toFixed(1)),
+            peakDescentRateMps: parseFloat(Math.abs(maxDescentRate).toFixed(1)),
+            peakDynamicPressurePascals: parseFloat(maxDynamicPressure.toFixed(1)),
+            peakLoadFactorG: parseFloat(peakGLoad.toFixed(2)),
+            minimumStallMarginPct: parseFloat((minStallMargin * 100).toFixed(1)),
+            estimatedDroneMassKg: DRONE_MASS_KG,
+        },
+        incidentCoordinates: anomalyWaypoint ? {
+            latitude: anomalyWaypoint.latitude,
+            longitude: anomalyWaypoint.longitude,
+            altitude: anomalyWaypoint.altitude,
+            x: parseFloat(anomalyWaypoint.x.toFixed(2)),
+            y: parseFloat(anomalyWaypoint.y.toFixed(2)),
+            z: parseFloat(anomalyWaypoint.z.toFixed(2)),
+            issue: anomalyWaypoint.issue,
+        } : null,
+        sequenceOfEvents,
+        airworthinessRecommendations,
+        totalFramesRecorded: timeSeriesVectors.length,
+    };
+}
+
 module.exports = {
     checkBridgeStatus,
     reconstructDigitalTwin,
     focusMissionControlCamera,
     simulatePhysicsIncident,
     generateSyntheticTelemetryPoints,
+    generateBlackBoxFDRReport,
 };
+

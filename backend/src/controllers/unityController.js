@@ -261,3 +261,47 @@ This flight record was synthetically generated via the AeroInsight Simulation En
         next(err);
     }
 };
+
+/**
+ * Interrogates and reconstructs the Flight Data Recorder (FDR) Black Box for an incident flight.
+ *
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ */
+exports.generateBlackBoxReport = async (req, res, next) => {
+    try {
+        const flightId = req.params.id || req.body.flightId;
+        let telemetryPoints = req.body.telemetry || [];
+
+        if (!telemetryPoints || telemetryPoints.length === 0) {
+            try {
+                const dbResult = await db.query(
+                    'SELECT latitude, longitude, altitude, battery, issue, timestamp FROM telemetry WHERE flight_id = $1 ORDER BY id ASC',
+                    [flightId]
+                );
+                if (dbResult && dbResult.rows && dbResult.rows.length > 0) {
+                    telemetryPoints = dbResult.rows;
+                }
+            } catch {
+                // Non-fatal if DB is offline or local
+            }
+        }
+
+        if (!telemetryPoints || telemetryPoints.length === 0) {
+            const err = new Error(`No flight telemetry available for Black Box reconstruction on '${flightId}'.`);
+            err.statusCode = 404;
+            return next(err);
+        }
+
+        const report = await unityMcpService.generateBlackBoxFDRReport(flightId, telemetryPoints, req.body.context || {});
+
+        res.json({
+            success: true,
+            data: report,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+

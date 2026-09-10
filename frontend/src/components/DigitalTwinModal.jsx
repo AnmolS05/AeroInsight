@@ -24,7 +24,8 @@ import {
   CheckCircle2,
   ExternalLink,
   ShieldAlert,
-  Download
+  Download,
+  FileText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Interactive3DTrajectory from './Interactive3DTrajectory';
@@ -42,11 +43,15 @@ import { exportToGeoJSON, exportToPX4CSV, downloadFile } from '../utils/telemetr
  * @returns {React.ReactElement|null} The rendered component.
  */
 export default function DigitalTwinModal({ isOpen, onClose, flightId, telemetry = [], apiUrl }) {
-  const [activeTab, setActiveTab] = useState('twin'); // 'twin' | 'physics' | 'camera'
+  const [activeTab, setActiveTab] = useState('twin'); // 'twin' | 'physics' | 'blackbox' | 'camera'
   const [bridgeStatus, setBridgeStatus] = useState({ connected: false, checking: true });
   const [isReconstructing, setIsReconstructing] = useState(false);
   const [reconstructionData, setReconstructionData] = useState(null);
   const [selectedAnomalyIndex, setSelectedAnomalyIndex] = useState(0);
+
+  // Black Box FDR Investigation state
+  const [blackBoxReport, setBlackBoxReport] = useState(null);
+  const [isLoadingBlackBox, setIsLoadingBlackBox] = useState(false);
 
   // Physics simulation state
   const [physicsConfig, setPhysicsConfig] = useState({
@@ -58,6 +63,37 @@ export default function DigitalTwinModal({ isOpen, onClose, flightId, telemetry 
   });
   const [isSimulatingPhysics, setIsSimulatingPhysics] = useState(false);
   const [physicsResult, setPhysicsResult] = useState(null);
+
+  const handleInterrogateBlackBox = async () => {
+    if (!flightId) return;
+    setIsLoadingBlackBox(true);
+    const toastId = toast.loading('Interrogating Flight Data Recorder (FDR) Black Box...');
+
+    try {
+      const res = await fetch(`${apiUrl}/api/unity/blackbox/${flightId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telemetry })
+      });
+      const json = await res.json();
+
+      if (json.success) {
+        setBlackBoxReport(json.data);
+        toast.success(
+          json.data.unityDispatched
+            ? 'FDR Black Box report ingested & incident marker placed in Unity!'
+            : 'FDR Black Box report computed & localized successfully.',
+          { id: toastId }
+        );
+      } else {
+        toast.error(json.message || 'Black box analysis failed.', { id: toastId });
+      }
+    } catch (err) {
+      toast.error(`FDR interrogation error: ${err.message}`, { id: toastId });
+    } finally {
+      setIsLoadingBlackBox(false);
+    }
+  };
 
   // Check bridge connectivity on mount and modal open
   useEffect(() => {
@@ -302,6 +338,22 @@ export default function DigitalTwinModal({ isOpen, onClose, flightId, telemetry 
             >
               <Wind className="w-3.5 h-3.5 text-amber-400" />
               Physics & Crash Simulation
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('blackbox');
+                if (!blackBoxReport && !isLoadingBlackBox) {
+                  handleInterrogateBlackBox();
+                }
+              }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'blackbox'
+                  ? 'bg-white/10 text-white shadow-sm'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5 text-red-400" />
+              Black Box FDR Investigation
             </button>
             <button
               onClick={() => setActiveTab('camera')}
@@ -628,6 +680,197 @@ export default function DigitalTwinModal({ isOpen, onClose, flightId, telemetry 
                         <strong className="text-white block font-medium">Avionics Recovery Directive:</strong>
                         <span>{physicsResult.incidentAnalysis.recoveryRecommendation}</span>
                       </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'blackbox' && (
+              <div className="space-y-6">
+                {/* Header Banner */}
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-red-950/30 via-white/[0.02] to-transparent border border-red-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                      </span>
+                      <h3 className="text-sm font-semibold text-white uppercase tracking-wider">
+                        Autonomous Flight Data Recorder (FDR) Interrogation
+                      </h3>
+                    </div>
+                    <p className="text-xs text-neutral-400 max-w-xl">
+                      Reconstructs high-rate aerodynamic telemetry frames, calculates dynamic pressure and stall margins, and evaluates ICAO Annex 13 probable cause.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleInterrogateBlackBox}
+                    disabled={isLoadingBlackBox}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white text-xs font-semibold shadow-lg shadow-red-500/20 transition-all active:scale-95 disabled:opacity-50 shrink-0"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingBlackBox ? 'animate-spin' : ''}`} />
+                    <span>{isLoadingBlackBox ? 'Decoding FDR Memory...' : 'Re-Run FDR Diagnostics'}</span>
+                  </button>
+                </div>
+
+                {isLoadingBlackBox && (
+                  <div className="p-8 rounded-2xl bg-white/[0.02] border border-white/10 text-center space-y-3">
+                    <div className="w-8 h-8 mx-auto rounded-full border-2 border-red-500 border-t-transparent animate-spin" />
+                    <p className="text-xs text-neutral-300 font-mono">
+                      Ingesting raw bus hex stream & computing aerodynamic failure vectors...
+                    </p>
+                  </div>
+                )}
+
+                {!isLoadingBlackBox && blackBoxReport && (
+                  <div className="space-y-5">
+                    {/* Classification & Integrity Ribbon */}
+                    <div className="p-4 rounded-2xl bg-black/60 border border-red-500/30 flex flex-wrap items-center justify-between gap-3 shadow-xl">
+                      <div className="flex items-center gap-3">
+                        <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-red-500/20 border border-red-500/40 text-red-300">
+                          {blackBoxReport.incidentClassification.criticalityLevel}
+                        </span>
+                        <span className="px-3 py-1 rounded-full text-xs font-mono font-semibold bg-white/[0.05] border border-white/10 text-neutral-200">
+                          {blackBoxReport.incidentClassification.icaoTaxonomy}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-[11px] font-mono text-neutral-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <span>FDR CRC32: VALID</span>
+                        <span className="text-neutral-600">•</span>
+                        <span>{blackBoxReport.totalFramesRecorded} FRAMES INGESTED</span>
+                      </div>
+                    </div>
+
+                    {/* Aerodynamic Failure Vectors Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="p-3.5 rounded-xl bg-black/50 border border-white/10 space-y-1">
+                        <span className="text-[10px] text-neutral-400 block font-medium">Peak Descent Velocity</span>
+                        <span className="font-mono text-red-400 font-bold text-base">
+                          {blackBoxReport.aerodynamicFailureVectors.peakDescentRateMps} m/s
+                        </span>
+                        <span className="text-[10px] text-neutral-500 block">Vertical descent rate</span>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-black/50 border border-white/10 space-y-1">
+                        <span className="text-[10px] text-neutral-400 block font-medium">Dynamic Pressure (q̄)</span>
+                        <span className="font-mono text-cyan-300 font-bold text-base">
+                          {blackBoxReport.aerodynamicFailureVectors.peakDynamicPressurePascals} Pa
+                        </span>
+                        <span className="text-[10px] text-neutral-500 block">Airflow kinetic energy</span>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-black/50 border border-white/10 space-y-1">
+                        <span className="text-[10px] text-neutral-400 block font-medium">Peak Load Factor</span>
+                        <span className="font-mono text-amber-300 font-bold text-base">
+                          {blackBoxReport.aerodynamicFailureVectors.peakLoadFactorG} G
+                        </span>
+                        <span className="text-[10px] text-neutral-500 block">Airframe structural load</span>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-black/50 border border-white/10 space-y-1">
+                        <span className="text-[10px] text-neutral-400 block font-medium">Minimum Stall Margin</span>
+                        <span className="font-mono text-emerald-400 font-bold text-base">
+                          {blackBoxReport.aerodynamicFailureVectors.minimumStallMarginPct}%
+                        </span>
+                        <span className="text-[10px] text-neutral-500 block">Aerodynamic reserve</span>
+                      </div>
+                    </div>
+
+                    {/* Probable Cause Statement Card */}
+                    <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-neutral-200">
+                        <FileText className="w-4 h-4 text-red-400" />
+                        <span>NTSB / FAA Standard Finding of Probable Cause:</span>
+                      </div>
+                      <p className="text-xs text-neutral-300 leading-relaxed font-sans bg-black/40 p-3 rounded-xl border border-white/5">
+                        {blackBoxReport.incidentClassification.probableCause}
+                      </p>
+                    </div>
+
+                    {/* Sequence of Events (SoE) Chronology */}
+                    <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-white uppercase tracking-wider">
+                          Sequence of Events (SoE) Chronology
+                        </span>
+                        <span className="text-[10px] text-neutral-500 font-mono">TIMELINE CALIBRATED UTC</span>
+                      </div>
+
+                      <div className="divide-y divide-white/5 border border-white/10 rounded-xl overflow-hidden text-xs">
+                        {blackBoxReport.sequenceOfEvents.map((evt, idx) => (
+                          <div key={idx} className="p-3 bg-black/40 flex items-start gap-3">
+                            <span className="font-mono text-[11px] text-cyan-400 font-semibold shrink-0 mt-0.5">
+                              +{evt.timeOffsetSec.toFixed(1)}s
+                            </span>
+                            <div className="flex-1 min-w-0 space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-white">{evt.event}</span>
+                                <span className={`px-2 py-0.5 rounded-md text-[9px] font-mono font-semibold ${
+                                  evt.severity === 'HAZARD' ? 'bg-red-500/20 text-red-300 border border-red-500/40' : 'bg-white/10 text-neutral-300'
+                                }`}>
+                                  {evt.severity}
+                                </span>
+                              </div>
+                              <p className="text-neutral-400 text-[11px] leading-relaxed">{evt.description}</p>
+                              {evt.coordinates && (
+                                <div className="text-[10px] font-mono text-neutral-500">
+                                  Cartesian UTM: ({evt.coordinates.x}m, {evt.coordinates.y}m, {evt.coordinates.z}m)
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Airworthiness Directives */}
+                    <div className="p-4 rounded-2xl bg-emerald-500/[0.04] border border-emerald-500/20 space-y-2.5">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>Pre-Flight Airworthiness Directives & Remedial Actions:</span>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-neutral-300">
+                        {blackBoxReport.airworthinessRecommendations.map((rec, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-emerald-400 font-bold">•</span>
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Quick Investigation Action Triggers */}
+                    <div className="flex flex-wrap items-center gap-3 pt-2">
+                      <button
+                        onClick={() => {
+                          setPhysicsConfig((prev) => ({
+                            ...prev,
+                            failureType: blackBoxReport.incidentCoordinates?.issue?.toLowerCase().includes('battery') ? 'BatterySag' : 'MotorCutoff',
+                            thrustDegradationPercent: 50,
+                            triggerSecond: 10
+                          }));
+                          setActiveTab('physics');
+                          toast.success('Failure vector loaded into Physics Crash Lab!');
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold transition-all active:scale-95"
+                      >
+                        <Wind className="w-3.5 h-3.5" />
+                        <span>Replicate in Physics Crash Lab</span>
+                      </button>
+
+                      {blackBoxReport.incidentCoordinates && (
+                        <button
+                          onClick={() => handleFocusAnomaly(blackBoxReport.incidentCoordinates)}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-xs font-semibold transition-all active:scale-95"
+                        >
+                          <Orbit className="w-3.5 h-3.5" />
+                          <span>Orbit Crash Site in Unity Viewport</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

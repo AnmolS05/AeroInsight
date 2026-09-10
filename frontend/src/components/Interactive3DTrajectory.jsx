@@ -32,7 +32,8 @@ import {
   Info,
   Layers,
   Activity,
-  ShieldAlert
+  ShieldAlert,
+  Wind
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -64,6 +65,7 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
   const [showVectors, setShowVectors] = useState(false);
   const [useSpline, setUseSpline] = useState(true);
   const [showObstacles, setShowObstacles] = useState(true);
+  const [showAtmosphere, setShowAtmosphere] = useState(true);
   const [unitySyncEnabled, setUnitySyncEnabled] = useState(false);
   const [isSyncingUnity, setIsSyncingUnity] = useState(false);
 
@@ -333,6 +335,8 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
         setShowVectors((prev) => !prev);
       } else if (e.key === 'o' || e.key === 'O') {
         setShowObstacles((prev) => !prev);
+      } else if (e.key === 'w' || e.key === 'W') {
+        setShowAtmosphere((prev) => !prev);
       }
     };
 
@@ -550,6 +554,86 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
     }
     ctx.stroke();
     ctx.setLineDash([]);
+
+    // Draw Dynamic Atmospheric Wind Streamlines & Thermal Hazard Columns
+    if (showAtmosphere) {
+      // 1. Animated Atmospheric Wind Streamlines
+      const windAngleRad = Math.PI / 4; // 45 degrees
+      const windDirX = Math.cos(windAngleRad);
+      const windDirZ = Math.sin(windAngleRad);
+      const numStreamlines = 12;
+      const streamlineLen = 0.32;
+
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+
+      for (let s = 0; s < numStreamlines; s++) {
+        const row = Math.floor(s / 3);
+        const col = s % 3;
+        const baseY = -0.3 + row * 0.22;
+        const baseX = -0.6 + col * 0.6;
+        const baseZ = -0.6 + row * 0.4;
+
+        // Animate drift along wind vector
+        const phase = (playbackProgress * 3.2 + s * 0.18) % 1.0;
+        const startX = baseX + windDirX * (phase * 1.4 - 0.5);
+        const startZ = baseZ + windDirZ * (phase * 1.4 - 0.5);
+        const endX = startX + windDirX * streamlineLen;
+        const endZ = startZ + windDirZ * streamlineLen;
+
+        const pStart = project(startX, baseY, startZ);
+        const pEnd = project(endX, baseY, endZ);
+
+        if (pStart.visible && pEnd.visible) {
+          ctx.beginPath();
+          ctx.moveTo(pStart.sx, pStart.sy);
+          ctx.lineTo(pEnd.sx, pEnd.sy);
+          ctx.stroke();
+
+          // Particle arrow tick
+          ctx.fillStyle = 'rgba(56, 189, 248, 0.6)';
+          ctx.beginPath();
+          ctx.arc(pEnd.sx, pEnd.sy, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // 2. Volumetric Thermal Microburst & Hazard Columns at Anomaly Sites
+      for (let i = 0; i < waypoints3D.length; i++) {
+        const wp = waypoints3D[i];
+        if (!wp.isAnomaly) continue;
+
+        const pBase = project(wp.normX, -0.6, wp.normZ);
+        const pTop = project(wp.normX, wp.normY + 0.35, wp.normZ);
+
+        if (pBase.visible && pTop.visible) {
+          // Vertical axis
+          ctx.strokeStyle = 'rgba(255, 69, 58, 0.3)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(pBase.sx, pBase.sy);
+          ctx.lineTo(pTop.sx, pTop.sy);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // 3 Pulsing Convection Rings
+          const ringRadius = 0.16;
+          for (let r = 0; r < 3; r++) {
+            const ringAlt = -0.5 + (wp.normY + 0.95) * ((r + 1) / 3.0);
+            const ringCenter = project(wp.normX, ringAlt, wp.normZ);
+            if (ringCenter.visible) {
+              const ringScreenRadius = Math.max(8, ringCenter.depth > 0 ? (ringRadius * 360 * zoom) / ringCenter.depth : 12);
+              ctx.strokeStyle = `rgba(255, 69, 58, ${0.15 + r * 0.12})`;
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.arc(ringCenter.sx, ringCenter.sy, ringScreenRadius, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+          }
+        }
+      }
+    }
 
     // Draw Trajectory Ribbon with Glowing Cyan Gradient
     ctx.beginPath();
@@ -807,6 +891,21 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
           >
             <Layers className="w-3 h-3 text-indigo-400" />
             <span className="hidden sm:inline">Terrain</span>
+          </button>
+
+          {/* Atmospheric Wind & Thermal Columns Toggle */}
+          <button
+            onClick={() => {
+              setShowAtmosphere((prev) => !prev);
+              toast(showAtmosphere ? 'Atmospheric field hidden' : 'Atmospheric wind & convection field engaged', { icon: '💨', duration: 1200 });
+            }}
+            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 ${
+              showAtmosphere ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40' : 'text-neutral-400 hover:text-white'
+            }`}
+            title="Toggle Atmospheric Wind Streamlines & Thermal Hazard Columns (W)"
+          >
+            <Wind className="w-3 h-3 text-sky-400" />
+            <span className="hidden sm:inline">Atmosphere</span>
           </button>
 
           {/* Force Vectors Toggle */}

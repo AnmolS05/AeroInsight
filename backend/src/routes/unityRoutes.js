@@ -24,4 +24,8 @@ router.post('/simulate/:id', validateFlightId, unityController.simulatePhysics);
 // Synthetic Telemetry Generation
 router.post('/generate-synthetic', unityController.createSyntheticFlight);
 
+// Black Box Flight Data Recorder (FDR) Reconstruction & Investigation
+router.post('/blackbox/:id', validateFlightId, unityController.generateBlackBoxReport);
+router.post('/blackbox', unityController.generateBlackBoxReport);
+
 module.exports = router;
