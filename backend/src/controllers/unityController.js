@@ -108,8 +108,23 @@ exports.simulatePhysics = async (req, res, next) => {
     try {
         const { id } = req.params;
         const physicsConfig = req.body || {};
+        let telemetryPoints = physicsConfig.telemetry || [];
 
-        const result = await unityMcpService.simulatePhysicsIncident(id, physicsConfig);
+        if (!telemetryPoints || telemetryPoints.length === 0) {
+            try {
+                const dbResult = await db.query(
+                    'SELECT latitude, longitude, altitude, battery, issue, timestamp FROM telemetry WHERE flight_id = $1 ORDER BY timestamp ASC',
+                    [id]
+                );
+                if (dbResult && dbResult.rows) {
+                    telemetryPoints = dbResult.rows;
+                }
+            } catch {
+                // Non-fatal if database is local/offline
+            }
+        }
+
+        const result = await unityMcpService.simulatePhysicsIncident(id, physicsConfig, telemetryPoints);
 
         res.json({
             success: true,
