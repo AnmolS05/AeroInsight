@@ -263,12 +263,28 @@ function App() {
    */
   const handleFocusAnomalyFromMap = (point) => {
     setIsDigitalTwinOpen(true);
+
+    let targetPos = { x: 0, y: point.altitude, z: 0 };
+    if (flightData && flightData.length > 0) {
+      const originLat = flightData[0].latitude;
+      const originLon = flightData[0].longitude;
+      const METERS_PER_DEG_LAT = 111139.0;
+      const METERS_PER_DEG_LON = 111139.0 * Math.cos((originLat * Math.PI) / 180.0);
+      const x = (point.longitude - originLon) * METERS_PER_DEG_LON;
+      const z = (point.latitude - originLat) * METERS_PER_DEG_LAT;
+      targetPos = {
+        x: parseFloat(x.toFixed(2)),
+        y: parseFloat(point.altitude.toFixed(2)),
+        z: parseFloat(z.toFixed(2))
+      };
+    }
+
     fetch(`${API_BASE_URL}/api/unity/focus`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         mode: 'OrbitAnomaly',
-        targetPosition: { x: 0, y: point.altitude, z: 0 },
+        targetPosition: targetPos,
         flightId: selectedFlightId,
         anomalyDescription: point.issue
       })
@@ -613,7 +629,7 @@ function App() {
                   </div>
 
                   <div className="h-64 sm:h-72 w-full">
-                    <TelemetryChart data={flightData} />
+                    <TelemetryChart data={flightData} onSelectPoint={handleFocusAnomalyFromMap} />
                   </div>
                 </section>
 
