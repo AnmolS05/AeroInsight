@@ -7,11 +7,16 @@ const db = new Pool({
         : true // Default to secure validation
 });
 
-db.connect((err) => {
+db.on('error', (err) => {
+    console.error('Unexpected error on idle PostgreSQL client:', err.message);
+});
+
+db.connect((err, client, release) => {
     if (err) {
-        console.error('Error connecting to the database:', err.message);
+        console.error('Initial database connection failed (falling back to graceful handling):', err.message);
     } else {
         console.log('Connected to the PostgreSQL database.');
+        release();
     }
 });
 

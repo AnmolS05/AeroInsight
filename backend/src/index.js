@@ -11,6 +11,9 @@ require('./config/database'); // Initialize DB
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// Enable trust proxy for Vercel and reverse proxy deployments
+app.set('trust proxy', 1);
+
 // Security Middlewares
 app.use(helmet());
 

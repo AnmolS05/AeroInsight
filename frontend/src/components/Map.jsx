@@ -184,9 +184,9 @@ export default function Map({ telemetryData }) {
             pathOptions={{ color: '#ffffff', fillColor: '#30d158', fillOpacity: 1, weight: 1.5 }}
           >
             <Popup className="apple-popup">
-              <div className="p-1 text-xs">
+              <div className="p-2.5 min-w-[150px] text-xs">
                 <p className="font-semibold text-[#30d158] uppercase tracking-wider text-[10px]">Takeoff Point</p>
-                <p className="text-neutral-300 font-mono text-[11px] mt-0.5">
+                <p className="text-neutral-200 font-mono text-[11px] mt-1">
                   {positions[0][0].toFixed(5)}, {positions[0][1].toFixed(5)}
                 </p>
               </div>
@@ -202,9 +202,9 @@ export default function Map({ telemetryData }) {
             pathOptions={{ color: '#ffffff', fillColor: '#2997ff', fillOpacity: 1, weight: 1.5 }}
           >
             <Popup className="apple-popup">
-              <div className="p-1 text-xs">
+              <div className="p-2.5 min-w-[150px] text-xs">
                 <p className="font-semibold text-[#2997ff] uppercase tracking-wider text-[10px]">Landing Point</p>
-                <p className="text-neutral-300 font-mono text-[11px] mt-0.5">
+                <p className="text-neutral-200 font-mono text-[11px] mt-1">
                   {positions[positions.length - 1][0].toFixed(5)}, {positions[positions.length - 1][1].toFixed(5)}
                 </p>
               </div>
@@ -229,15 +229,25 @@ export default function Map({ telemetryData }) {
             icon={issueIcon}
           >
             <Popup className="apple-popup">
-              <div className="p-2 min-w-[190px] text-xs">
-                <div className="flex items-center gap-1.5 font-semibold text-[#ff453a] mb-1">
-                  <AlertCircle size={14} /> Anomaly Flagged
+              <div className="p-3 min-w-[200px] text-xs">
+                <div className="flex items-center gap-1.5 font-semibold text-[#ff453a] mb-1.5">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>Anomaly Flagged</span>
                 </div>
-                <p className="text-neutral-200 font-medium leading-snug mb-2">{point.issue}</p>
-                <div className="bg-black/40 rounded-lg p-2 text-[11px] text-neutral-400 space-y-0.5 font-mono border border-white/10">
-                  <div>ALT: {point.altitude}m</div>
-                  <div>BAT: {point.battery}%</div>
-                  <div>TIME: {new Date(point.timestamp).toLocaleTimeString()}</div>
+                <p className="text-white font-medium text-[12px] leading-snug mb-2.5 capitalize">{point.issue}</p>
+                <div className="bg-black/60 rounded-lg p-2.5 text-[11px] font-mono border border-white/[0.08] space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-neutral-400">ALT:</span>
+                    <span className="text-neutral-200 font-semibold">{point.altitude}m</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-neutral-400">BAT:</span>
+                    <span className="text-neutral-200 font-semibold">{point.battery}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-neutral-400">TIME:</span>
+                    <span className="text-neutral-200 font-semibold">{new Date(point.timestamp).toLocaleTimeString()}</span>
+                  </div>
                 </div>
               </div>
             </Popup>

@@ -623,6 +623,10 @@ graph TD
 ```
 - **Why it exists:** It filters the telemetry array for any point where `issue !== 'none'` and places a custom pulsing red HTML marker over that exact GPS coordinate. Clicking the marker opens a `Popup` showing the battery and altitude at the exact moment the anomaly occurred.
 
+**The Hazard Alignment Bug (The "Double Offset" Problem)**
+* **The Problem:** The hazard anomaly markers were rendering visibly far away from the actual flight path line. When defining a custom marker using `L.divIcon`, Leaflet allows you to specify an `iconAnchor` (which was correctly set to `[16, 32]` to place the tip of the pin exactly on the GPS coordinate). However, the HTML `<div>` inside that icon *also* had negative margins (`-ml-4` and `-mt-8`) applied via Tailwind CSS. This caused the pin to be shifted twice: once by Leaflet's coordinate engine, and once by CSS layout rules, moving it up and to the left of the actual path.
+* **The Fix:** We simply removed the `-ml-4 -mt-8` Tailwind classes from the `<div>` in `createIssueIcon()`, allowing Leaflet's native `iconAnchor` configuration to act as the sole source of truth for the marker's offset, correctly pinning the marker directly onto the path.
+
 ### 🧠 Stop and Think
 > In `Sidebar.jsx`, the file is read using `FileReader.readAsText()`. What happens if the user uploads a 500MB JSON log file?
 *Self-Correction: `FileReader` loads the entire file into the browser's RAM as a single massive string. `JSON.parse()` will likely freeze the browser thread and crash the tab. For massive telemetry logs, we would need to use a streaming parser or just send the raw `File` object via `FormData` to the backend, allowing a Node.js stream to process it chunk by chunk without blowing up memory.*

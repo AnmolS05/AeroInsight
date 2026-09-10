@@ -642,9 +642,9 @@ function App() {
                   <div className="absolute w-64 h-48 bg-[#2997ff]/15 blur-3xl rounded-full" />
                   <div className="absolute w-32 h-32 bg-[#0071e3]/20 blur-xl rounded-full" />
 
-                  {/* High-definition transparent mark (brushed titanium delta wing + glowing concentric radar waves) */}
+                  {/* High-definition SVG mark retaining exact visual texture and glowing radar pulses */}
                   <img
-                    src="/brand-mark.png"
+                    src="/brand-mark.svg"
                     alt="AeroInsight Delta Mark"
                     className="relative w-48 sm:w-60 md:w-68 h-auto object-contain drop-shadow-[0_16px_40px_rgba(41,151,255,0.4)]"
                   />
