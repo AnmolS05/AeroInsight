@@ -25,7 +25,7 @@ exports.validateTelemetry = (req, res, next) => {
   }
 };
 
-const flightIdSchema = z.string().uuid("Invalid Flight ID format");
+const flightIdSchema = z.string().min(1, "Flight ID cannot be empty").max(100, "Flight ID too long").regex(/^[a-zA-Z0-9_\-]+$/, "Flight ID must be alphanumeric or contain hyphens/underscores");
 
 exports.validateFlightId = (req, res, next) => {
   try {
@@ -34,7 +34,8 @@ exports.validateFlightId = (req, res, next) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       error.statusCode = 400;
-      error.message = 'Validation failed: ' + error.errors.map(e => e.message).join(', ');
+      const issues = error.errors || error.issues || [];
+      error.message = 'Validation failed: ' + issues.map(e => e.message).join(', ');
       return next(error);
     }
     next(error);

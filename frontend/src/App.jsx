@@ -17,7 +17,8 @@ import ReportModal from './components/ReportModal';
 import MapModal from './components/MapModal';
 import DigitalTwinModal from './components/DigitalTwinModal';
 import SyntheticFlightModal from './components/SyntheticFlightModal';
-import { Maximize2, RefreshCw, PlaneTakeoff, Menu, AlertTriangle, ShieldCheck, ArrowRight, MessageSquare, Send, Box, Sparkles } from 'lucide-react';
+import AIChatModal from './components/AIChatModal';
+import { Maximize2, RefreshCw, PlaneTakeoff, Menu, AlertTriangle, ShieldCheck, ArrowRight, MessageSquare, Send, Box, Sparkles, Bot } from 'lucide-react';
 import { SAMPLE_FLIGHTS } from './utils/sampleFlights';
 
 /**
@@ -78,6 +79,7 @@ function App() {
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [isDigitalTwinOpen, setIsDigitalTwinOpen] = useState(false);
   const [isSyntheticModalOpen, setIsSyntheticModalOpen] = useState(false);
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [isRegeneratingReport, setIsRegeneratingReport] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -274,41 +276,70 @@ function App() {
   };
 
   /**
-   * Handles flight telemetry assistant queries with instant intelligence synthesis.
+   * Handles flight telemetry assistant queries with autonomous Gemini AI and Unity MCP coordination.
    *
-   * @param {React.FormEvent} e - Form submission event.
+   * @param {React.FormEvent} [e] - Optional form submission event.
+   * @param {string} [overridePrompt] - Optional direct prompt text to query.
    */
-  const handleAssistantQuery = (e) => {
-    e.preventDefault();
-    if (!assistantQuestion.trim() || !flightData || flightData.length === 0) return;
+  const handleAssistantQuery = async (e, overridePrompt) => {
+    if (e) e.preventDefault();
+    const query = (overridePrompt || assistantQuestion).trim();
+    if (!query || !flightData || flightData.length === 0) return;
 
     setIsAssistantThinking(true);
-    const q = assistantQuestion.toLowerCase();
 
-    setTimeout(() => {
-      let answer = "";
-      const maxAlt = Math.max(...flightData.map(d => d.altitude));
-      const startBat = flightData[0].battery;
-      const endBat = flightData[flightData.length - 1].battery;
-      const issues = flightData.filter(d => d.issue && d.issue.toLowerCase() !== 'none');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/assistant/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: query,
+          flightId: selectedFlightId,
+          telemetry: flightData
+        })
+      });
 
-      if (q.includes('altitude') || q.includes('height')) {
-        answer = `The flight reached a peak altitude of ${maxAlt} meters AGL. Climb was stable through waypoint 3.`;
-      } else if (q.includes('battery') || q.includes('power') || q.includes('charge')) {
-        answer = `Battery started at ${startBat}% and completed at ${endBat}%, a net consumption of ${startBat - endBat}%. Nominal power curve.`;
-      } else if (q.includes('issue') || q.includes('problem') || q.includes('anomaly') || q.includes('warn')) {
-        answer = issues.length > 0
-          ? `Detected ${issues.length} anomaly event(s): "${issues[0].issue}". Recommend motor check.`
-          : `No anomalies detected. All flight parameters remained strictly within safe tolerances.`;
-      } else if (q.includes('maintenance') || q.includes('service') || q.includes('action')) {
-        answer = `Technician recommendation: Perform standard pre-flight rotor spin check and verify battery cell resistance prior to next sortie.`;
-      } else {
-        answer = `Mission summary: ${flightData.length} checkpoints recorded. Ceiling: ${maxAlt}m. Battery remaining: ${endBat}%. ${issues.length} flagged events.`;
+      if (res.ok) {
+        const data = await res.json();
+        setAssistantAnswer(data.answer);
+
+        if (data.action === 'RECONSTRUCT_3D_TWIN') {
+          setIsDigitalTwinOpen(true);
+        } else if (data.action === 'FLIGHT_CREATED' && data.actionPayload?.flightId) {
+          fetchFlights();
+          handleFlightSelect(data.actionPayload.flightId);
+        } else if (data.action === 'SIMULATE_PHYSICS') {
+          setIsDigitalTwinOpen(true);
+        }
+        setIsAssistantThinking(false);
+        return;
       }
+    } catch (err) {
+      console.warn('Backend assistant unreachable, using deterministic avionics summary:', err);
+    }
 
-      setAssistantAnswer(answer);
-      setIsAssistantThinking(false);
-    }, 400);
+    // Deterministic fallback
+    const q = query.toLowerCase();
+    const maxAlt = Math.max(...flightData.map(d => d.altitude));
+    const startBat = flightData[0].battery;
+    const endBat = flightData[flightData.length - 1].battery;
+    const issues = flightData.filter(d => d.issue && d.issue.toLowerCase() !== 'none');
+
+    let answer = "";
+    if (q.includes('altitude') || q.includes('height')) {
+      answer = `The flight reached a peak altitude of ${maxAlt} meters AGL. Climb was stable through waypoint 3.`;
+    } else if (q.includes('battery') || q.includes('power') || q.includes('charge')) {
+      answer = `Battery started at ${startBat}% and completed at ${endBat}%, a net consumption of ${(startBat - endBat).toFixed(1)}%. Nominal power curve.`;
+    } else if (q.includes('issue') || q.includes('problem') || q.includes('anomaly') || q.includes('warn')) {
+      answer = issues.length > 0
+        ? `Detected ${issues.length} anomaly event(s): "${issues[0].issue}". Recommend motor check.`
+        : `No anomalies detected. All flight parameters remained strictly within safe tolerances.`;
+    } else {
+      answer = `Mission summary: ${flightData.length} checkpoints recorded. Ceiling: ${maxAlt}m. Battery remaining: ${endBat}%. ${issues.length} flagged events.`;
+    }
+
+    setAssistantAnswer(answer);
+    setIsAssistantThinking(false);
   };
 
   // Precomputed metrics
@@ -331,6 +362,7 @@ function App() {
         onSelectSample={handleLoadDefaultSample}
         onOpenDigitalTwin={() => setIsDigitalTwinOpen(true)}
         onOpenSyntheticModal={() => setIsSyntheticModalOpen(true)}
+        onOpenAIChat={() => setIsAIChatOpen(true)}
       />
 
       {/* Main Content Workspace */}
@@ -355,6 +387,16 @@ function App() {
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* AI Flight Copilot Assistant */}
+            <button
+              onClick={() => setIsAIChatOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#2997ff]/10 hover:bg-[#2997ff]/20 text-[#64d2ff] border border-[#2997ff]/25 transition-all shadow-sm active:scale-95"
+              title="Open AI Flight Copilot Assistant"
+            >
+              <Bot size={13} className="text-[#2997ff]" />
+              <span>AI Copilot</span>
+            </button>
+
             {selectedFlightId && (
               <>
                 <button
@@ -584,13 +626,22 @@ function App() {
                         Flight Assistant
                       </h3>
                     </div>
-                    <span className="text-[11px] text-neutral-500">Ask any telemetry or anomaly question</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIsAIChatOpen(true)}
+                        className="flex items-center gap-1 text-[11px] text-[#2997ff] hover:text-[#64d2ff] transition-colors"
+                        title="Open Interactive AI Flight Copilot Assistant"
+                      >
+                        <Sparkles size={12} />
+                        <span>Open Copilot</span>
+                      </button>
+                    </div>
                   </div>
 
                   <form onSubmit={handleAssistantQuery} className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="e.g., What was the maximum altitude? Were there any thermal warnings?"
+                      placeholder="e.g., What was the maximum altitude? Reconstruct in 3D? Were there any thermal warnings?"
                       value={assistantQuestion}
                       onChange={(e) => setAssistantQuestion(e.target.value)}
                       className="flex-1 bg-white/[0.04] hover:bg-white/[0.06] hover:border-white/[0.14] border border-white/[0.08] focus:border-[#0071e3] rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-neutral-500 focus:outline-none transition-colors"
@@ -618,36 +669,15 @@ function App() {
                       "What was the peak altitude?",
                       "How did the battery drain?",
                       "Were any anomalies flagged?",
-                      "Recommended maintenance?"
+                      "Reconstruct 3D Digital Twin",
+                      "Simulate 30kt wind & motor failure"
                     ].map((prompt, idx) => (
                       <button
                         key={idx}
                         type="button"
                         onClick={() => {
                           setAssistantQuestion(prompt);
-                          setIsAssistantThinking(true);
-                          const q = prompt.toLowerCase();
-                          setTimeout(() => {
-                            let answer = "";
-                            const maxAlt = Math.max(...flightData.map(d => d.altitude));
-                            const startBat = flightData[0].battery;
-                            const endBat = flightData[flightData.length - 1].battery;
-                            const issues = flightData.filter(d => d.issue && d.issue.toLowerCase() !== 'none');
-
-                            if (q.includes('altitude') || q.includes('height')) {
-                              answer = `The flight reached a peak altitude of ${maxAlt} meters AGL. Climb was stable through waypoint 3.`;
-                            } else if (q.includes('battery') || q.includes('power') || q.includes('drain')) {
-                              answer = `Battery started at ${startBat}% and completed at ${endBat}%, a net consumption of ${startBat - endBat}%. Nominal power curve.`;
-                            } else if (q.includes('anomal') || q.includes('flag')) {
-                              answer = issues.length > 0
-                                ? `Detected ${issues.length} anomaly event(s): "${issues[0].issue}". Recommend motor inspection.`
-                                : `No anomalies detected. All flight parameters remained strictly within safe tolerances.`;
-                            } else {
-                              answer = `Technician recommendation: Perform standard pre-flight rotor spin check and verify battery cell resistance prior to next sortie.`;
-                            }
-                            setAssistantAnswer(answer);
-                            setIsAssistantThinking(false);
-                          }, 350);
+                          handleAssistantQuery(null, prompt);
                         }}
                         className="text-[11px] px-2.5 py-1 rounded-full bg-white/[0.03] hover:bg-white/[0.08] hover:text-white border border-white/[0.06] hover:border-white/[0.14] text-neutral-400 transition-all cursor-pointer active:scale-95"
                       >
@@ -754,6 +784,23 @@ function App() {
         isOpen={isSyntheticModalOpen}
         onClose={() => setIsSyntheticModalOpen(false)}
         apiUrl={API_BASE_URL}
+        onFlightCreated={(newFlightId) => {
+          fetchFlights();
+          handleFlightSelect(newFlightId);
+        }}
+      />
+
+      {/* Interactive AI Flight Copilot Assistant Modal */}
+      <AIChatModal
+        isOpen={isAIChatOpen}
+        onClose={() => setIsAIChatOpen(false)}
+        flightId={selectedFlightId}
+        telemetry={flightData}
+        apiUrl={API_BASE_URL}
+        onOpenDigitalTwin={() => {
+          setIsAIChatOpen(false);
+          setIsDigitalTwinOpen(true);
+        }}
         onFlightCreated={(newFlightId) => {
           fetchFlights();
           handleFlightSelect(newFlightId);

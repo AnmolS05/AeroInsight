@@ -5,7 +5,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Upload, PlaneTakeoff, Clock, Activity, Search, Trash2, X, Compass, CheckCircle2, Box, Sparkles } from 'lucide-react';
+import { Upload, PlaneTakeoff, Clock, Activity, Search, Trash2, X, Compass, CheckCircle2, Box, Sparkles, Bot } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseFlightLog } from '../utils/flightParser';
@@ -38,7 +38,8 @@ export default function Sidebar({
   onMobileClose,
   onSelectSample,
   onOpenDigitalTwin,
-  onOpenSyntheticModal
+  onOpenSyntheticModal,
+  onOpenAIChat
 }) {
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -170,6 +171,18 @@ export default function Sidebar({
           >
             <Box size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-200" />
             <span>Launch 3D Digital Twin</span>
+          </button>
+        )}
+
+        {/* AI Flight Copilot Launch */}
+        {onOpenAIChat && (
+          <button
+            onClick={onOpenAIChat}
+            className="w-full py-2 px-3 rounded-xl flex items-center justify-center gap-2 font-medium text-xs tracking-wide bg-[#2997ff]/10 hover:bg-[#2997ff]/20 text-[#64d2ff] border border-[#2997ff]/25 transition-all group shadow-sm"
+            title="Open AI Flight Copilot & Unity MCP Assistant"
+          >
+            <Bot size={13} className="text-[#2997ff] group-hover:scale-110 transition-transform duration-200" />
+            <span>AI Flight Copilot</span>
           </button>
         )}
 

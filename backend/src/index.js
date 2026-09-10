@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const flightRoutes = require('./routes/flightRoutes');
 const unityRoutes = require('./routes/unityRoutes');
+const assistantRoutes = require('./routes/assistantRoutes');
 const errorHandler = require('./middlewares/errorHandler');
 require('./config/database'); // Initialize DB
 
@@ -39,6 +40,7 @@ app.use(morgan('dev')); // Add request logging
 
 app.use('/api/flights', flightRoutes);
 app.use('/api/unity', unityRoutes);
+app.use('/api/assistant', assistantRoutes);
 
 app.get('/', (req, res) => {
     res.send('AeroInsight Backend API is running.');

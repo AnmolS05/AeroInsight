@@ -23,10 +23,12 @@ import {
   Play,
   CheckCircle2,
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Interactive3DTrajectory from './Interactive3DTrajectory';
+import { exportToGeoJSON, exportToPX4CSV, downloadFile } from '../utils/telemetryExport';
 
 /**
  * 3D Digital Twin Modal component.
@@ -165,6 +167,18 @@ export default function DigitalTwinModal({ isOpen, onClose, flightId, telemetry 
     }
   };
 
+  const handleExportGeoJSON = () => {
+    const geojson = exportToGeoJSON(flightId || 'flight', telemetry);
+    downloadFile(`${flightId || 'flight'}_trajectory.geojson`, geojson, 'application/geo+json');
+    toast.success('Exported flight trajectory as GeoJSON!');
+  };
+
+  const handleExportPX4CSV = () => {
+    const csv = exportToPX4CSV(flightId || 'flight', telemetry);
+    downloadFile(`${flightId || 'flight'}_blackbox.csv`, csv, 'text/csv');
+    toast.success('Exported avionics blackbox to PX4 CSV!');
+  };
+
   if (!isOpen) return null;
 
   // Extract anomaly waypoints
@@ -233,6 +247,26 @@ export default function DigitalTwinModal({ isOpen, onClose, flightId, telemetry 
                   className="ml-1 p-0.5 hover:text-white transition-colors"
                 >
                   <RefreshCw className="w-3 h-3" />
+                </button>
+              </div>
+
+              {/* GIS & Avionics Export Suite */}
+              <div className="hidden sm:flex items-center gap-1.5">
+                <button
+                  onClick={handleExportGeoJSON}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-white/[0.04] hover:bg-white/[0.08] text-neutral-300 hover:text-white border border-white/[0.08] transition-all active:scale-95"
+                  title="Export trajectory to RFC 7946 GeoJSON FeatureCollection"
+                >
+                  <Download className="w-3 h-3 text-[#2997ff]" />
+                  <span>GeoJSON</span>
+                </button>
+                <button
+                  onClick={handleExportPX4CSV}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-white/[0.04] hover:bg-white/[0.08] text-neutral-300 hover:text-white border border-white/[0.08] transition-all active:scale-95"
+                  title="Export blackbox telemetry to PX4/ArduPilot CSV"
+                >
+                  <Download className="w-3 h-3 text-emerald-400" />
+                  <span>PX4 CSV</span>
                 </button>
               </div>
 
