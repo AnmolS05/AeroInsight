@@ -24,9 +24,11 @@ function detectIntent(text) {
     // 1. Synthetic Flight Generation
     if (lower.includes('generate') && (lower.includes('flight') || lower.includes('telemetry') || lower.includes('mission') || lower.includes('log'))) {
         let pattern = 'LawnmowerSurvey';
-        if (lower.includes('solar') || lower.includes('grid')) pattern = 'LawnmowerSurvey';
-        else if (lower.includes('orbit') || lower.includes('turbine') || lower.includes('tower')) pattern = 'OrbitInspection';
-        else if (lower.includes('point to point') || lower.includes('corridor')) pattern = 'PointToPoint';
+        if (lower.includes('solar') || lower.includes('photovoltaic') || lower.includes('pv')) pattern = 'SolarArrayInspection';
+        else if (lower.includes('turbine') || lower.includes('wind') || lower.includes('blade')) pattern = 'WindTurbineInspection';
+        else if (lower.includes('tower') || lower.includes('telecom') || lower.includes('mast') || lower.includes('cell')) pattern = 'CellTowerInspection';
+        else if (lower.includes('orbit') || lower.includes('circular') || lower.includes('360')) pattern = 'OrbitInspection';
+        else if (lower.includes('point to point') || lower.includes('corridor') || lower.includes('delivery')) pattern = 'PointToPoint';
 
         let anomaly = 'None';
         if (lower.includes('overheat') || lower.includes('temperature') || lower.includes('motor')) anomaly = 'Motor Overheat';

@@ -485,6 +485,33 @@ function generateSyntheticTelemetryPoints(options = {}) {
             const angle = (timeSec / totalDurationSeconds) * Math.PI * 2;
             offsetX = Math.cos(angle) * radius;
             offsetZ = Math.sin(angle) * radius;
+        } else if (flightPattern === 'WindTurbineInspection') {
+            // Helical vertical orbit climbing around a wind turbine mast and rotor
+            const radius = 45.0;
+            const revolutions = 2.5;
+            const angle = (timeSec / totalDurationSeconds) * Math.PI * 2 * revolutions;
+            offsetX = Math.cos(angle) * radius;
+            offsetZ = Math.sin(angle) * radius;
+            currentAltitude = baseAltitudeMeters + (timeSec / totalDurationSeconds) * 60.0; // Climbs 60m
+        } else if (flightPattern === 'CellTowerInspection') {
+            // Tight vertical helix around a telecommunication mast
+            const radius = 25.0;
+            const revolutions = 3.0;
+            const angle = (timeSec / totalDurationSeconds) * Math.PI * 2 * revolutions;
+            offsetX = Math.cos(angle) * radius;
+            offsetZ = Math.sin(angle) * radius;
+            currentAltitude = 15.0 + (timeSec / totalDurationSeconds) * 55.0; // 15m to 70m
+        } else if (flightPattern === 'SolarArrayInspection') {
+            // Dense serpentine raster sweep over solar panel rows
+            const numLanes = 6;
+            const legDuration = totalDurationSeconds / numLanes;
+            const leg = Math.floor(timeSec / legDuration);
+            const legProgress = (timeSec % legDuration) / legDuration;
+            const laneWidth = 18.0;
+            const laneLength = 160.0;
+
+            offsetX = leg * laneWidth;
+            offsetZ = leg % 2 === 0 ? legProgress * laneLength : (1.0 - legProgress) * laneLength;
         } else if (flightPattern === 'PointToPoint') {
             offsetX = (timeSec / totalDurationSeconds) * 250.0;
             offsetZ = Math.sin(timeSec * 0.08) * 20.0;
@@ -500,28 +527,36 @@ function generateSyntheticTelemetryPoints(options = {}) {
             offsetZ = leg % 2 === 0 ? legProgress * laneLength : (1.0 - legProgress) * laneLength;
         }
 
-        // Micro-altitude variations
-        const altNoise = (Math.sin(timeSec * 0.4) + Math.cos(timeSec * 0.7)) * 0.35;
-        currentAltitude = baseAltitudeMeters + altNoise;
+        // Realistic Sensor Noise Modeling (IMU vibration harmonics and barometric drift)
+        const altNoise = (Math.sin(timeSec * 1.8) * 0.18) + (Math.cos(timeSec * 3.4) * 0.12);
+        if (flightPattern !== 'WindTurbineInspection' && flightPattern !== 'CellTowerInspection') {
+            currentAltitude = baseAltitudeMeters + altNoise;
+        } else {
+            currentAltitude += altNoise;
+        }
 
-        // Base consumption
-        currentBattery -= samplingIntervalSeconds * 0.14;
+        // Non-linear battery consumption with power amplifier curve
+        currentBattery -= samplingIntervalSeconds * (0.12 + (100 - currentBattery) * 0.0006);
 
         // Anomaly injection logic
         let issue = 'None';
         if (timeSec >= anomalyStartSecond && injectedAnomaly && injectedAnomaly !== 'None') {
             issue = injectedAnomaly;
-            if (injectedAnomaly.includes('Altitude Drop')) {
+            if (injectedAnomaly.includes('Altitude Drop') || injectedAnomaly.includes('Stall')) {
                 currentAltitude = Math.max(2.5, currentAltitude - (timeSec - anomalyStartSecond) * 3.2);
-            } else if (injectedAnomaly.includes('Battery')) {
+            } else if (injectedAnomaly.includes('Battery') || injectedAnomaly.includes('Voltage')) {
                 currentBattery -= samplingIntervalSeconds * 2.8;
-            } else if (injectedAnomaly.includes('Sensor Drift')) {
+            } else if (injectedAnomaly.includes('Sensor Drift') || injectedAnomaly.includes('Compass')) {
                 offsetX += (timeSec - anomalyStartSecond) * 4.5;
             }
         }
 
-        const lat = centerLatitude + offsetZ * METERS_PER_DEG_LAT;
-        const lon = centerLongitude + offsetX * METERS_PER_DEG_LON;
+        // GPS Satellite Dilution of Precision (HDOP) Gaussian micro-noise (~0.8m)
+        const gpsNoiseLat = (Math.sin(timeSec * 3.7) + Math.cos(timeSec * 5.1)) * 0.000004;
+        const gpsNoiseLon = (Math.cos(timeSec * 2.9) + Math.sin(timeSec * 4.7)) * 0.000004;
+
+        const lat = centerLatitude + offsetZ * METERS_PER_DEG_LAT + gpsNoiseLat;
+        const lon = centerLongitude + offsetX * METERS_PER_DEG_LON + gpsNoiseLon;
 
         points.push({
             latitude: parseFloat(lat.toFixed(7)),

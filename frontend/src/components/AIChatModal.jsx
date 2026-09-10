@@ -298,7 +298,9 @@ export default function AIChatModal({
           {[
             { label: '🚀 Reconstruct in 3D', query: 'Reconstruct this flight into a 3D digital twin in Unity' },
             { label: '🌪️ Simulate 35kt Crosswind', query: 'Simulate 35 knots crosswind with motor cutoff physics' },
-            { label: '⚡ Generate Solar Mission', query: 'Generate a 60-second synthetic flight inspecting a solar array' },
+            { label: '⚡ Solar Farm Scan', query: 'Generate a 60-second synthetic flight inspecting a solar array' },
+            { label: '🌬️ Turbine Helical Scan', query: 'Generate a synthetic flight inspecting a wind turbine with motor overheat' },
+            { label: '📡 Cell Tower Spiral', query: 'Generate a synthetic flight inspecting a cell tower with RF sensor drift' },
             { label: '🎥 Orbit Anomaly', query: 'Focus mission control camera and orbit the flagged anomaly' },
             { label: '📊 Battery & Altitude Check', query: 'Analyze peak altitude, battery drain curve, and flight stability' }
           ].map((chip, idx) => (

@@ -4,11 +4,14 @@
  * Features:
  * - 3D Orbit, Chase, and Cockpit FPV Camera Modes
  * - Interactive Timeline Playback with Scrubber & Variable Speed Multipliers (0.5x, 1x, 2x, 5x)
+ * - Aerodynamic Force Vectors Overlay (Thrust, Lift, Drag, Gravity vectors with mathematical sizing)
+ * - Dual-Screen Unity SceneView Synchronizer (Dispatches real-time camera focus to Unity Editor)
+ * - Interactive Waypoint Click & Hover Inspector Card
  * - Glassmorphic Avionics HUD (Altitude, Groundspeed, Battery, Heading Compass, Anomaly Warnings)
- * - True Perspective 3D Rendering with Depth Sorting, Ground Reference Grid, and Altitude-Gradient Trajectory Ribbon
+ * - True Perspective 3D Rendering with Depth Sorting, Ground Reference Grid, and Altitude-Gradient Ribbon
  */
 
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import {
   RotateCcw,
   ZoomIn,
@@ -21,8 +24,14 @@ import {
   AlertTriangle,
   Eye,
   Crosshair,
-  Maximize2
+  Maximize2,
+  Zap,
+  Radio,
+  ExternalLink,
+  ChevronRight,
+  Info
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 /**
  * Interactive 3D Trajectory Canvas component.
@@ -30,9 +39,11 @@ import {
  * @param {Object} props - Component properties.
  * @param {Array<Object>} props.telemetry - Telemetry data points.
  * @param {Function} [props.onSelectWaypoint] - Callback when a waypoint is clicked.
+ * @param {string} [props.apiUrl] - Backend API base URL for Unity MCP sync.
+ * @param {string} [props.flightId] - Flight identifier.
  * @returns {React.ReactElement} The rendered 3D viewport.
  */
-export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoint }) {
+export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoint, apiUrl, flightId }) {
   const canvasRef = useRef(null);
 
   // Viewport Camera Parameters
@@ -46,8 +57,16 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
   const [playbackProgress, setPlaybackProgress] = useState(0); // 0.0 to 1.0
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0); // 0.5, 1.0, 2.0, 5.0
 
+  // Aerospace & Simulation Overlays
+  const [showVectors, setShowVectors] = useState(false);
+  const [unitySyncEnabled, setUnitySyncEnabled] = useState(false);
+  const [isSyncingUnity, setIsSyncingUnity] = useState(false);
+  const [selectedWaypoint, setSelectedWaypoint] = useState(null);
+  const [hoveredWaypoint, setHoveredWaypoint] = useState(null);
+
   const isDraggingRef = useRef(false);
   const lastMouseRef = useRef({ x: 0, y: 0 });
+  const lastSyncTimeRef = useRef(0);
 
   // 1. Process 3D Coordinates & Metrics Relative to Origin
   const waypoints3D = useMemo(() => {
@@ -136,7 +155,7 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
   // Interpolated Live Drone State along Trajectory
   const activeDroneState = useMemo(() => {
     if (waypoints3D.length === 0) {
-      return { altitude: 0, battery: 100, heading: 0, speed: 0, isAnomaly: false, issue: null };
+      return { altitude: 0, battery: 100, heading: 0, speed: 0, isAnomaly: false, issue: null, x: 0, y: 0, z: 0 };
     }
 
     const totalSegments = waypoints3D.length - 1;
@@ -152,6 +171,10 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
     const battery = pA.raw.battery + ((pB.raw.battery || pA.raw.battery) - pA.raw.battery) * subT;
     const heading = pA.heading;
 
+    const curX = pA.x + (pB.x - pA.x) * subT;
+    const curY = altitude;
+    const curZ = pA.z + (pB.z - pA.z) * subT;
+
     // Approximate groundspeed in m/s
     const distM = Math.sqrt(Math.pow(pB.x - pA.x, 2) + Math.pow(pB.z - pA.z, 2));
     const speed = distM > 0 ? (distM * 1.5).toFixed(1) : (12.4).toFixed(1);
@@ -165,9 +188,49 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
       heading: Math.round(heading),
       speed,
       isAnomaly,
-      issue
+      issue,
+      x: curX,
+      y: curY,
+      z: curZ
     };
   }, [playbackProgress, waypoints3D]);
+
+  // Dual-screen dispatch to Unity Editor Viewport
+  const syncToUnityViewport = useCallback(async (targetState, force = false) => {
+    if (!apiUrl) return;
+    const now = Date.now();
+    if (!force && now - lastSyncTimeRef.current < 1500) return; // throttle stream
+    lastSyncTimeRef.current = now;
+
+    try {
+      setIsSyncingUnity(true);
+      await fetch(`${apiUrl}/api/unity/focus`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: cameraMode === 'cockpit' ? 'first_person' : (cameraMode === 'chase' ? 'chase' : 'drone_orbit'),
+          targetPosition: {
+            x: targetState.x,
+            y: targetState.y,
+            z: targetState.z
+          },
+          flightId: flightId || 'ACTIVE_FLIGHT',
+          anomalyDescription: targetState.issue || undefined
+        })
+      });
+    } catch {
+      // Non-fatal if Unity bridge is in standby
+    } finally {
+      setIsSyncingUnity(false);
+    }
+  }, [apiUrl, cameraMode, flightId]);
+
+  // Sync on toggle or significant event
+  useEffect(() => {
+    if (unitySyncEnabled && activeDroneState) {
+      syncToUnityViewport(activeDroneState);
+    }
+  }, [unitySyncEnabled, activeDroneState, syncToUnityViewport]);
 
   // 3. Render 3D Canvas
   useEffect(() => {
@@ -360,7 +423,7 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
       ctx.shadowBlur = 0;
     }
 
-    // Draw Live Drone Marker
+    // Draw Live Drone Marker & Aerodynamic Force Vectors
     const liveDroneProj = project(droneNormX, droneNormY, droneNormZ);
     if (liveDroneProj.visible) {
       // Glow Aura
@@ -387,10 +450,50 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
       ctx.arc(liveDroneProj.sx, liveDroneProj.sy, 12, 0, Math.PI * 2);
       ctx.stroke();
       ctx.shadowBlur = 0;
-    }
-  }, [pitch, yaw, zoom, cameraMode, waypoints3D, playbackProgress]);
 
-  // Mouse Orbiting
+      // Aerodynamic Force Vectors Overlay
+      if (showVectors) {
+        const cx = liveDroneProj.sx;
+        const cy = liveDroneProj.sy;
+
+        // Thrust Vector (T, Yellow, Forward & Up)
+        ctx.strokeStyle = '#ffd60a';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.sin(radH) * 26, cy - Math.cos(radH) * 26 - 12);
+        ctx.stroke();
+
+        // Drag Vector (D, Red, Backwards)
+        ctx.strokeStyle = '#ff453a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx - Math.sin(radH) * 20, cy + Math.cos(radH) * 20);
+        ctx.stroke();
+
+        // Lift Vector (L, Cyan, Upwards)
+        ctx.strokeStyle = '#64d2ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, cy - 24);
+        ctx.stroke();
+
+        // Weight/Gravity Vector (W, Orange, Downwards)
+        ctx.strokeStyle = '#ff9f0a';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, cy + 22);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+  }, [pitch, yaw, zoom, cameraMode, waypoints3D, playbackProgress, showVectors]);
+
+  // Mouse Orbiting & Waypoint Selection
   const handleMouseDown = (e) => {
     if (cameraMode !== 'orbit') return;
     isDraggingRef.current = true;
@@ -398,14 +501,15 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
   };
 
   const handleMouseMove = (e) => {
-    if (!isDraggingRef.current || cameraMode !== 'orbit') return;
-    const deltaX = e.clientX - lastMouseRef.current.x;
-    const deltaY = e.clientY - lastMouseRef.current.y;
+    if (isDraggingRef.current && cameraMode === 'orbit') {
+      const deltaX = e.clientX - lastMouseRef.current.x;
+      const deltaY = e.clientY - lastMouseRef.current.y;
 
-    setYaw((prev) => (prev + deltaX * 0.6) % 360);
-    setPitch((prev) => Math.max(-15, Math.min(85, prev + deltaY * 0.6)));
+      setYaw((prev) => (prev + deltaX * 0.6) % 360);
+      setPitch((prev) => Math.max(-15, Math.min(85, prev + deltaY * 0.6)));
 
-    lastMouseRef.current = { x: e.clientX, y: e.clientY };
+      lastMouseRef.current = { x: e.clientX, y: e.clientY };
+    }
   };
 
   const handleMouseUp = () => {
@@ -472,6 +576,17 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
             <div className="text-[11px] font-mono text-neutral-300">
               HDG {String(activeDroneState.heading).padStart(3, '0')}°
             </div>
+
+            {/* Unity Sync Indicator */}
+            {unitySyncEnabled && (
+              <>
+                <div className="w-px h-3 bg-white/15" />
+                <div className="flex items-center gap-1 text-[10px] text-cyan-400 font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                  <span>UNITY SYNC</span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Anomaly Proximity Alert Banner */}
@@ -483,8 +598,45 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
           )}
         </div>
 
-        {/* Top Right: Camera Mode Toggles & Zoom */}
+        {/* Top Right: Camera Mode Toggles & Aerospace Controls */}
         <div className="absolute top-3 right-3 flex items-center gap-1.5 p-1 rounded-2xl bg-black/70 backdrop-blur-xl border border-white/10 text-white/80 shadow-xl">
+          {/* Force Vectors Toggle */}
+          <button
+            onClick={() => setShowVectors((prev) => !prev)}
+            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 ${
+              showVectors ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-neutral-400 hover:text-white'
+            }`}
+            title="Toggle Aerodynamic Force Vectors (Thrust, Drag, Lift, Weight)"
+          >
+            <Zap className="w-3 h-3 text-amber-400" />
+            <span className="hidden sm:inline">Vectors</span>
+          </button>
+
+          {/* Unity Sync Toggle (Concept 4) */}
+          {apiUrl && (
+            <button
+              onClick={() => {
+                const next = !unitySyncEnabled;
+                setUnitySyncEnabled(next);
+                if (next) {
+                  syncToUnityViewport(activeDroneState, true);
+                  toast.success('Unity SceneView Camera Synchronizer engaged!');
+                } else {
+                  toast('Unity SceneView sync disconnected.', { icon: '⏸️' });
+                }
+              }}
+              className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 ${
+                unitySyncEnabled ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'text-neutral-400 hover:text-white'
+              }`}
+              title="Synchronize Unity Editor SceneView Camera with 3D Mission Control"
+            >
+              <Radio className="w-3 h-3 text-cyan-400" />
+              <span className="hidden sm:inline">Unity Sync</span>
+            </button>
+          )}
+
+          <div className="w-px h-4 bg-white/10 mx-0.5" />
+
           {/* Camera View Mode Selector */}
           <div className="flex items-center gap-0.5 p-0.5 rounded-xl bg-white/[0.06] border border-white/[0.08]">
             <button
@@ -543,6 +695,28 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
+
+        {/* Vectors Legend HUD (when active) */}
+        {showVectors && (
+          <div className="absolute bottom-3 left-3 flex items-center gap-3 px-3 py-1.5 rounded-xl bg-black/75 backdrop-blur-md border border-white/10 text-[10px] text-white/80 font-mono pointer-events-none">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-0.5 bg-[#ffd60a]" />
+              <span>Thrust (T)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-0.5 bg-[#64d2ff]" />
+              <span>Lift (L)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-0.5 bg-[#ff453a]" />
+              <span>Drag (D)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-0.5 bg-[#ff9f0a] border-b border-dashed" />
+              <span>Weight (W)</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom Timeline Playback & Scrubber Controls */}
@@ -551,7 +725,7 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
         <button
           onClick={() => setIsPlaying((prev) => !prev)}
           className="w-7 h-7 rounded-xl bg-white/[0.08] hover:bg-[#2997ff] text-white flex items-center justify-center transition-all shrink-0 active:scale-95"
-          title={isPlaying ? 'Pause Playback' : 'Play Playback'}
+          title={isPlaying ? 'Pause Playback (Space)' : 'Play Playback (Space)'}
         >
           {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
         </button>

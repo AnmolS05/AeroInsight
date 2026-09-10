@@ -237,13 +237,29 @@ namespace AeroInsight.Editor
         {
             try
             {
+                float x = 0f, y = 35f, z = 0f;
+                var matchX = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"x\"\\s*:\\s*(-?[0-9\\.]+)");
+                var matchY = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"y\"\\s*:\\s*(-?[0-9\\.]+)");
+                var matchZ = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"z\"\\s*:\\s*(-?[0-9\\.]+)");
+
+                if (matchX.Success && float.TryParse(matchX.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float px)) x = px;
+                if (matchY.Success && float.TryParse(matchY.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float py)) y = py;
+                if (matchZ.Success && float.TryParse(matchZ.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float pz)) z = pz;
+
+                Vector3 target = new Vector3(x, y, z);
+
                 SceneView sceneView = SceneView.lastActiveSceneView;
                 if (sceneView != null)
                 {
-                    // Frame target area in SceneView
-                    sceneView.LookAt(new Vector3(0, 35, 0), Quaternion.Euler(30, 45, 0), 60f);
+                    sceneView.LookAt(target, Quaternion.Euler(30, 45, 0), 45f);
                     sceneView.Repaint();
-                    Debug.Log("[AeroInsight MCP] SceneView camera oriented toward target.");
+                    Debug.Log($"[AeroInsight MCP] SceneView camera oriented toward coordinates: {target}.");
+                }
+
+                var camCtrl = UnityEngine.Object.FindFirstObjectByType<MissionControlCameraController>();
+                if (camCtrl != null)
+                {
+                    camCtrl.FocusTarget(target, 45f);
                 }
             }
             catch (Exception ex)
@@ -257,11 +273,30 @@ namespace AeroInsight.Editor
         /// </summary>
         private static void ExecutePhysicsSimulation(string jsonBody)
         {
-            var simulator = UnityEngine.Object.FindFirstObjectByType<PhysicsAnomalySimulator>();
-            if (simulator != null)
+            try
             {
-                simulator.windShearSpeed = 25.0f;
-                Debug.Log("[AeroInsight MCP] Physics anomaly parameters applied to simulator.");
+                var simulator = UnityEngine.Object.FindFirstObjectByType<PhysicsAnomalySimulator>();
+                if (simulator != null)
+                {
+                    var matchWind = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"windSpeedKnots\"\\s*:\\s*(-?[0-9\\.]+)");
+                    if (matchWind.Success && float.TryParse(matchWind.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float w))
+                    {
+                        simulator.windShearSpeed = w;
+                    }
+
+                    var matchThrust = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"thrustDegradationPercent\"\\s*:\\s*(-?[0-9\\.]+)");
+                    if (matchThrust.Success && float.TryParse(matchThrust.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float t))
+                    {
+                        simulator.motorRotorCutoffLossPercent = t;
+                    }
+
+                    simulator.TriggerFailure();
+                    Debug.Log($"[AeroInsight MCP] Physics anomaly simulation initiated: Wind={simulator.windShearSpeed}kts, ThrustLoss={simulator.motorRotorCutoffLossPercent}%.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[AeroInsight MCP] Physics simulation error: {ex.Message}");
             }
         }
     }

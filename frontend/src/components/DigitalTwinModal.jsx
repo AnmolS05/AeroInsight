@@ -349,7 +349,11 @@ export default function DigitalTwinModal({ isOpen, onClose, flightId, telemetry 
                     <span className="text-[11px] text-cyan-400 font-mono">Real-Time Simulation Feed</span>
                   </div>
                   <div className="h-[340px] w-full">
-                    <Interactive3DTrajectory telemetry={telemetry} />
+                    <Interactive3DTrajectory 
+                      telemetry={telemetry} 
+                      apiUrl={apiUrl} 
+                      flightId={flightId} 
+                    />
                   </div>
                 </div>
 

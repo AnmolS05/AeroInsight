@@ -139,7 +139,15 @@ exports.simulatePhysics = async (req, res, next) => {
  * Validation schema for synthetic flight generation request.
  */
 const syntheticRequestSchema = z.object({
-    flightPattern: z.enum(['LawnmowerSurvey', 'OrbitInspection', 'PointToPoint', 'PerimeterPatrol']).default('LawnmowerSurvey'),
+    flightPattern: z.enum([
+        'LawnmowerSurvey',
+        'OrbitInspection',
+        'PointToPoint',
+        'PerimeterPatrol',
+        'SolarArrayInspection',
+        'WindTurbineInspection',
+        'CellTowerInspection'
+    ]).default('LawnmowerSurvey'),
     centerLatitude: z.number().min(-90).max(90).default(12.9716),
     centerLongitude: z.number().min(-180).max(180).default(77.5946),
     baseAltitudeMeters: z.number().min(1).max(500).default(35.0),
