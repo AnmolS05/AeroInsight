@@ -228,6 +228,26 @@ namespace AeroInsight.Editor
                 reconstructor.LoadFlightFromJson(jsonBody);
                 Debug.Log("[AeroInsight MCP] Flight reconstruction dispatched successfully.");
             }
+
+            // Concept 2: Procedural environment obstacle generation
+            var obstacleGen = UnityEngine.Object.FindFirstObjectByType<EnvironmentObstacleGenerator>();
+            if (obstacleGen != null)
+            {
+                obstacleGen.ClearObstacles();
+                string lower = jsonBody.ToLowerInvariant();
+                if (lower.Contains("wind") || lower.Contains("turbine"))
+                {
+                    obstacleGen.SpawnWindTurbine(Vector3.zero, 55f, 26f);
+                }
+                else if (lower.Contains("solar") || lower.Contains("photovoltaic") || lower.Contains("array"))
+                {
+                    obstacleGen.SpawnSolarPanelArray(new Vector3(-40f, 0f, -40f), 5, 8, 8f);
+                }
+                else if (lower.Contains("building") || lower.Contains("urban") || lower.Contains("drop") || lower.Contains("stall"))
+                {
+                    obstacleGen.SpawnBuildingCluster(new Vector3(15f, 0f, 20f), 6, 45f, 15f, 40f);
+                }
+            }
         }
 
         /// <summary>

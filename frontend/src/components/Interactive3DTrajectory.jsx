@@ -29,7 +29,10 @@ import {
   Radio,
   ExternalLink,
   ChevronRight,
-  Info
+  Info,
+  Layers,
+  Activity,
+  ShieldAlert
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -59,10 +62,10 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
 
   // Aerospace & Simulation Overlays
   const [showVectors, setShowVectors] = useState(false);
+  const [useSpline, setUseSpline] = useState(true);
+  const [showObstacles, setShowObstacles] = useState(true);
   const [unitySyncEnabled, setUnitySyncEnabled] = useState(false);
   const [isSyncingUnity, setIsSyncingUnity] = useState(false);
-  const [selectedWaypoint, setSelectedWaypoint] = useState(null);
-  const [hoveredWaypoint, setHoveredWaypoint] = useState(null);
 
   const isDraggingRef = useRef(false);
   const lastMouseRef = useRef({ x: 0, y: 0 });
@@ -127,6 +130,83 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
     }));
   }, [telemetry]);
 
+  // Catmull-Rom Spline Curve Interpolation
+  const splineTrajectory = useMemo(() => {
+    if (!useSpline || waypoints3D.length < 3) return waypoints3D;
+
+    const subdivisions = 5;
+    const spline = [];
+
+    for (let i = 0; i < waypoints3D.length - 1; i++) {
+      const p0 = i > 0 ? waypoints3D[i - 1] : waypoints3D[i];
+      const p1 = waypoints3D[i];
+      const p2 = waypoints3D[i + 1];
+      const p3 = i < waypoints3D.length - 2 ? waypoints3D[i + 2] : p2;
+
+      for (let s = 0; s < subdivisions; s++) {
+        const t = s / subdivisions;
+        const t2 = t * t;
+        const t3 = t2 * t;
+
+        const normX = 0.5 * ((2 * p1.normX) + (-p0.normX + p2.normX) * t + (2 * p0.normX - 5 * p1.normX + 4 * p2.normX - p3.normX) * t2 + (-p0.normX + 3 * p1.normX - 3 * p2.normX + p3.normX) * t3);
+        const normY = 0.5 * ((2 * p1.normY) + (-p0.normY + p2.normY) * t + (2 * p0.normY - 5 * p1.normY + 4 * p2.normY - p3.normY) * t2 + (-p0.normY + 3 * p1.normY - 3 * p2.normY + p3.normY) * t3);
+        const normZ = 0.5 * ((2 * p1.normZ) + (-p0.normZ + p2.normZ) * t + (2 * p0.normZ - 5 * p1.normZ + 4 * p2.normZ - p3.normZ) * t2 + (-p0.normZ + 3 * p1.normZ - 3 * p2.normZ + p3.normZ) * t3);
+
+        spline.push({
+          normX,
+          normY,
+          normZ,
+          isAnomaly: false
+        });
+      }
+    }
+
+    spline.push(waypoints3D[waypoints3D.length - 1]);
+    return spline;
+  }, [waypoints3D, useSpline]);
+
+  // Procedural 3D Environment Obstacles (Concept 2: Physics Incident Reconstruction)
+  const proceduralObstacles = useMemo(() => {
+    if (waypoints3D.length === 0) return [];
+
+    const obstacles = [];
+    const hasAnomaly = waypoints3D.some((wp) => wp.isAnomaly);
+
+    // Wind turbine obstacle at center
+    obstacles.push({
+      type: 'turbine',
+      x: 0.0,
+      y: -0.6,
+      z: 0.0,
+      hubHeight: 0.8,
+      bladeRadius: 0.35
+    });
+
+    // Urban building hazard blocks if incident flight
+    if (hasAnomaly) {
+      obstacles.push({
+        type: 'building',
+        x: 0.35,
+        y: -0.6,
+        z: 0.28,
+        width: 0.18,
+        height: 0.55,
+        depth: 0.18
+      });
+      obstacles.push({
+        type: 'building',
+        x: -0.32,
+        y: -0.6,
+        z: -0.32,
+        width: 0.22,
+        height: 0.45,
+        depth: 0.22
+      });
+    }
+
+    return obstacles;
+  }, [waypoints3D]);
+
   // 2. Continuous Playback Loop
   useEffect(() => {
     if (!isPlaying || waypoints3D.length < 2) return;
@@ -152,10 +232,10 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
     return () => cancelAnimationFrame(animId);
   }, [isPlaying, playbackSpeed, waypoints3D.length]);
 
-  // Interpolated Live Drone State along Trajectory
+  // Interpolated Live Drone State along Trajectory & Clearance calculation
   const activeDroneState = useMemo(() => {
     if (waypoints3D.length === 0) {
-      return { altitude: 0, battery: 100, heading: 0, speed: 0, isAnomaly: false, issue: null, x: 0, y: 0, z: 0 };
+      return { altitude: 0, battery: 100, heading: 0, speed: 0, isAnomaly: false, issue: null, x: 0, y: 0, z: 0, clearance: 50 };
     }
 
     const totalSegments = waypoints3D.length - 1;
@@ -182,6 +262,12 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
     const isAnomaly = pA.isAnomaly || pB.isAnomaly;
     const issue = pA.isAnomaly ? pA.raw.issue : (pB.isAnomaly ? pB.raw.issue : null);
 
+    // Compute estimated obstacle clearance
+    const normX = pA.normX + (pB.normX - pA.normX) * subT;
+    const normZ = pA.normZ + (pB.normZ - pA.normZ) * subT;
+    const distToCenter = Math.sqrt(normX * normX + normZ * normZ);
+    const clearance = Math.max(4.2, (distToCenter * 45.0)).toFixed(1);
+
     return {
       altitude: parseFloat(altitude.toFixed(1)),
       battery: parseFloat(battery.toFixed(1)),
@@ -191,7 +277,8 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
       issue,
       x: curX,
       y: curY,
-      z: curZ
+      z: curZ,
+      clearance
     };
   }, [playbackProgress, waypoints3D]);
 
@@ -231,6 +318,27 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
       syncToUnityViewport(activeDroneState);
     }
   }, [unitySyncEnabled, activeDroneState, syncToUnityViewport]);
+
+  // Keyboard Shortcuts: Space=Play/Pause, C=Camera Mode, V=Vectors, O=Obstacles
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsPlaying((prev) => !prev);
+      } else if (e.key === 'c' || e.key === 'C') {
+        setCameraMode((prev) => prev === 'orbit' ? 'chase' : prev === 'chase' ? 'cockpit' : 'orbit');
+      } else if (e.key === 'v' || e.key === 'V') {
+        setShowVectors((prev) => !prev);
+      } else if (e.key === 'o' || e.key === 'O') {
+        setShowObstacles((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // 3. Render 3D Canvas
   useEffect(() => {
@@ -350,8 +458,81 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
       }
     }
 
-    // Project All Waypoints
-    const screenPts = waypoints3D.map((wp) => ({
+    // Draw Procedural 3D Environment Obstacles (Concept 2)
+    if (showObstacles) {
+      for (const obs of proceduralObstacles) {
+        if (obs.type === 'turbine') {
+          // Wind Turbine Tower
+          const baseProj = project(obs.x, obs.y, obs.z);
+          const hubProj = project(obs.x, obs.y + obs.hubHeight, obs.z);
+
+          if (baseProj.visible && hubProj.visible) {
+            // Mast
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(baseProj.sx, baseProj.sy);
+            ctx.lineTo(hubProj.sx, hubProj.sy);
+            ctx.stroke();
+
+            // Hub
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(hubProj.sx, hubProj.sy, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 3 Rotating Blades
+            const bladeRotAngle = (playbackProgress * Math.PI * 8) % (Math.PI * 2);
+            for (let b = 0; b < 3; b++) {
+              const ang = bladeRotAngle + (b * Math.PI * 2 / 3);
+              const tipX = obs.x + Math.sin(ang) * obs.bladeRadius;
+              const tipY = obs.y + obs.hubHeight + Math.cos(ang) * obs.bladeRadius;
+              const tipProj = project(tipX, tipY, obs.z);
+
+              if (tipProj.visible) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(hubProj.sx, hubProj.sy);
+                ctx.lineTo(tipProj.sx, tipProj.sy);
+                ctx.stroke();
+              }
+            }
+          }
+        } else if (obs.type === 'building') {
+          // 3D Building Prism
+          const bBase = project(obs.x, obs.y, obs.z);
+          const bTop = project(obs.x, obs.y + obs.height, obs.z);
+
+          if (bBase.visible && bTop.visible) {
+            ctx.fillStyle = 'rgba(41, 151, 255, 0.12)';
+            ctx.strokeStyle = 'rgba(41, 151, 255, 0.4)';
+            ctx.lineWidth = 1;
+
+            const halfW = obs.width / 2;
+            const pTL = project(obs.x - halfW, obs.y + obs.height, obs.z - halfW);
+            const pTR = project(obs.x + halfW, obs.y + obs.height, obs.z - halfW);
+            const pBR = project(obs.x + halfW, obs.y, obs.z - halfW);
+            const pBL = project(obs.x - halfW, obs.y, obs.z - halfW);
+
+            if (pTL.visible && pTR.visible && pBR.visible && pBL.visible) {
+              ctx.beginPath();
+              ctx.moveTo(pTL.sx, pTL.sy);
+              ctx.lineTo(pTR.sx, pTR.sy);
+              ctx.lineTo(pBR.sx, pBR.sy);
+              ctx.lineTo(pBL.sx, pBL.sy);
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+            }
+          }
+        }
+      }
+    }
+
+    // Select Trajectory Source (Catmull-Rom Spline or Raw Waypoints)
+    const activeTrajectory = useSpline ? splineTrajectory : waypoints3D;
+    const ribbonPts = activeTrajectory.map((wp) => ({
       ...wp,
       ...project(wp.normX, wp.normY, wp.normZ)
     }));
@@ -362,39 +543,25 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
     ctx.lineWidth = 1.5;
     ctx.setLineDash([4, 4]);
 
-    for (let i = 0; i < waypoints3D.length; i++) {
-      const shadowPt = project(waypoints3D[i].normX, -0.6, waypoints3D[i].normZ);
+    for (let i = 0; i < activeTrajectory.length; i++) {
+      const shadowPt = project(activeTrajectory[i].normX, -0.6, activeTrajectory[i].normZ);
       if (i === 0) ctx.moveTo(shadowPt.sx, shadowPt.sy);
       else ctx.lineTo(shadowPt.sx, shadowPt.sy);
     }
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Draw Vertical Altitude Ties
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < screenPts.length; i += Math.max(1, Math.floor(screenPts.length / 8))) {
-      const pt = screenPts[i];
-      const shadowPt = project(waypoints3D[i].normX, -0.6, waypoints3D[i].normZ);
-      if (pt.visible && shadowPt.visible) {
-        ctx.beginPath();
-        ctx.moveTo(pt.sx, pt.sy);
-        ctx.lineTo(shadowPt.sx, shadowPt.sy);
-        ctx.stroke();
-      }
-    }
-
     // Draw Trajectory Ribbon with Glowing Cyan Gradient
     ctx.beginPath();
     ctx.strokeStyle = '#00e5ff';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = useSpline ? 3.5 : 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.shadowColor = '#00e5ff';
     ctx.shadowBlur = 10;
 
-    for (let i = 0; i < screenPts.length; i++) {
-      const pt = screenPts[i];
+    for (let i = 0; i < ribbonPts.length; i++) {
+      const pt = ribbonPts[i];
       if (!pt.visible) continue;
       if (i === 0) ctx.moveTo(pt.sx, pt.sy);
       else ctx.lineTo(pt.sx, pt.sy);
@@ -403,9 +570,11 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
     ctx.shadowBlur = 0;
 
     // Draw Glowing Anomaly Hazard Beacons
-    for (let i = 0; i < screenPts.length; i++) {
-      const pt = screenPts[i];
-      if (!pt.visible || !pt.isAnomaly) continue;
+    for (let i = 0; i < waypoints3D.length; i++) {
+      const wp = waypoints3D[i];
+      if (!wp.isAnomaly) continue;
+      const pt = project(wp.normX, wp.normY, wp.normZ);
+      if (!pt.visible) continue;
 
       ctx.shadowColor = '#ff453a';
       ctx.shadowBlur = 14;
@@ -491,9 +660,9 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
         ctx.setLineDash([]);
       }
     }
-  }, [pitch, yaw, zoom, cameraMode, waypoints3D, playbackProgress, showVectors]);
+  }, [pitch, yaw, zoom, cameraMode, waypoints3D, splineTrajectory, proceduralObstacles, playbackProgress, showVectors, showObstacles, useSpline]);
 
-  // Mouse Orbiting & Waypoint Selection
+  // Mouse Orbiting & Dragging
   const handleMouseDown = (e) => {
     if (cameraMode !== 'orbit') return;
     isDraggingRef.current = true;
@@ -536,7 +705,7 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
         />
 
         {/* Top Left: Glassmorphic Avionics HUD Overlay */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 p-2.5 rounded-2xl bg-black/70 backdrop-blur-xl border border-white/10 text-white shadow-xl pointer-events-none">
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 p-2.5 rounded-2xl bg-black/75 backdrop-blur-xl border border-white/10 text-white shadow-xl pointer-events-none">
           <div className="flex items-center gap-3">
             {/* Speed Metric */}
             <div className="flex items-center gap-1.5 text-xs">
@@ -577,6 +746,16 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
               HDG {String(activeDroneState.heading).padStart(3, '0')}°
             </div>
 
+            {/* Obstacle Clearance Metric */}
+            <div className="w-px h-3 bg-white/15" />
+            <div className="flex items-center gap-1 text-[10px] font-mono">
+              <ShieldAlert className={`w-3 h-3 ${parseFloat(activeDroneState.clearance) < 10 ? 'text-red-400' : 'text-emerald-400'}`} />
+              <span className="text-neutral-400">CLR:</span>
+              <span className={`font-semibold ${parseFloat(activeDroneState.clearance) < 10 ? 'text-red-300' : 'text-emerald-300'}`}>
+                {activeDroneState.clearance}m
+              </span>
+            </div>
+
             {/* Unity Sync Indicator */}
             {unitySyncEnabled && (
               <>
@@ -599,14 +778,44 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
         </div>
 
         {/* Top Right: Camera Mode Toggles & Aerospace Controls */}
-        <div className="absolute top-3 right-3 flex items-center gap-1.5 p-1 rounded-2xl bg-black/70 backdrop-blur-xl border border-white/10 text-white/80 shadow-xl">
+        <div className="absolute top-3 right-3 flex items-center gap-1.5 p-1 rounded-2xl bg-black/75 backdrop-blur-xl border border-white/10 text-white/80 shadow-xl">
+          {/* Spline Smoothing Toggle */}
+          <button
+            onClick={() => {
+              setUseSpline((prev) => !prev);
+              toast.success(useSpline ? 'Linear Waypoints engaged' : 'Catmull-Rom Spline trajectory smoothing engaged!', { duration: 1200 });
+            }}
+            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 ${
+              useSpline ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'text-neutral-400 hover:text-white'
+            }`}
+            title="Toggle Aerodynamic Catmull-Rom Spline Smoothing (S)"
+          >
+            <Activity className="w-3 h-3 text-cyan-400" />
+            <span className="hidden sm:inline">Spline</span>
+          </button>
+
+          {/* Procedural 3D Obstacles Toggle */}
+          <button
+            onClick={() => {
+              setShowObstacles((prev) => !prev);
+              toast(showObstacles ? '3D Obstacles hidden' : '3D Procedural Obstacles visible', { icon: '🏗️', duration: 1200 });
+            }}
+            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 ${
+              showObstacles ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' : 'text-neutral-400 hover:text-white'
+            }`}
+            title="Toggle Procedural 3D Environment Obstacles (Wind Turbines, Buildings) (O)"
+          >
+            <Layers className="w-3 h-3 text-indigo-400" />
+            <span className="hidden sm:inline">Terrain</span>
+          </button>
+
           {/* Force Vectors Toggle */}
           <button
             onClick={() => setShowVectors((prev) => !prev)}
             className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all flex items-center gap-1 ${
               showVectors ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-neutral-400 hover:text-white'
             }`}
-            title="Toggle Aerodynamic Force Vectors (Thrust, Drag, Lift, Weight)"
+            title="Toggle Aerodynamic Force Vectors (Thrust, Drag, Lift, Weight) (V)"
           >
             <Zap className="w-3 h-3 text-amber-400" />
             <span className="hidden sm:inline">Vectors</span>

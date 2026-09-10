@@ -121,10 +121,19 @@ namespace AeroInsight.Editor
             camCtrl.targetDrone = droneObj.transform;
             camCtrl.SetOverview(Vector3.zero, 60f);
 
+            // 7. Setup Procedural Environment Obstacle Generator
+            GameObject envObj = GameObject.Find("AeroInsight_Environment");
+            if (envObj == null)
+            {
+                envObj = new GameObject("AeroInsight_Environment");
+                envObj.AddComponent<EnvironmentObstacleGenerator>();
+                Undo.RegisterCreatedObjectUndo(envObj, "Create Environment Obstacle Generator");
+            }
+
             // Mark scene dirty for saving
             EditorSceneManager.MarkSceneDirty(currentScene);
             Debug.Log("[AeroInsight] Simulation Scene successfully bootstrapped and configured for MCP integration!");
-            EditorUtility.DisplayDialog("AeroInsight Digital Twin", "AeroInsight 3D Simulation Scene has been bootstrapped!\n\n- Virtual Drone initialized\n- LineRenderer Trajectory configured\n- PhysicsAnomalySimulator armed\n- MissionControl Camera calibrated", "OK");
+            EditorUtility.DisplayDialog("AeroInsight Digital Twin", "AeroInsight 3D Simulation Scene has been bootstrapped!\n\n- Virtual Drone initialized\n- LineRenderer Trajectory configured\n- PhysicsAnomalySimulator armed\n- MissionControl Camera calibrated\n- Procedural Environment Obstacle Generator active", "OK");
         }
     }
 }

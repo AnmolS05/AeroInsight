@@ -177,11 +177,22 @@ namespace AeroInsight.Simulation
                 }
             }
 
-            // Update LineRenderer
+            // Generate smooth spline path if enabled
+            if (useSplineSmoothing && _worldWaypoints.Count > 2)
+            {
+                _splinePositions = GenerateSplinePath(_worldWaypoints, splineSubdivisions);
+            }
+            else
+            {
+                _splinePositions = new List<Vector3>(_worldWaypoints);
+            }
+
+            // Update LineRenderer with smoothed trajectory ribbon
             if (trajectoryLine != null)
             {
-                trajectoryLine.positionCount = _worldWaypoints.Count;
-                trajectoryLine.SetPositions(_worldWaypoints.ToArray());
+                var renderPositions = _splinePositions.Count > 0 ? _splinePositions : _worldWaypoints;
+                trajectoryLine.positionCount = renderPositions.Count;
+                trajectoryLine.SetPositions(renderPositions.ToArray());
             }
 
             // Start drone animation along path
@@ -222,19 +233,74 @@ namespace AeroInsight.Simulation
             marker.name = $"Anomaly_{waypointIndex}_{issueDescription.Replace(" ", "_")}";
         }
 
+        [Tooltip("Enable smooth aerodynamic Catmull-Rom spline interpolation")]
+        public bool useSplineSmoothing = true;
+
+        [Range(2, 10)]
+        [Tooltip("Spline interpolation subdivision points per waypoint leg")]
+        public int splineSubdivisions = 5;
+
+        private List<Vector3> _splinePositions = new List<Vector3>();
+
         /// <summary>
-        /// Coroutine to animate drone smoothly through all waypoints.
+        /// Evaluates a Catmull-Rom spline point at parameter t in [0, 1] between p1 and p2.
+        /// </summary>
+        public static Vector3 EvaluateCatmullRom(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, float t)
+        {
+            float t2 = t * t;
+            float t3 = t2 * t;
+
+            return 0.5f * (
+                (2.0f * p1) +
+                (-p0 + p2) * t +
+                (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 +
+                (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3
+            );
+        }
+
+        /// <summary>
+        /// Generates a smooth Catmull-Rom spline path through all world waypoints.
+        /// </summary>
+        private List<Vector3> GenerateSplinePath(List<Vector3> waypoints, int subdivisions)
+        {
+            List<Vector3> spline = new List<Vector3>();
+            if (waypoints.Count < 2) return new List<Vector3>(waypoints);
+
+            for (int i = 0; i < waypoints.Count - 1; i++)
+            {
+                Vector3 p0 = i > 0 ? waypoints[i - 1] : waypoints[i];
+                Vector3 p1 = waypoints[i];
+                Vector3 p2 = waypoints[i + 1];
+                Vector3 p3 = i < waypoints.Count - 2 ? waypoints[i + 2] : p2;
+
+                for (int s = 0; s < subdivisions; s++)
+                {
+                    float t = (float)s / subdivisions;
+                    spline.Add(EvaluateCatmullRom(p0, p1, p2, p3, t));
+                }
+            }
+
+            spline.Add(waypoints[waypoints.Count - 1]);
+            return spline;
+        }
+
+        /// <summary>
+        /// Coroutine to animate drone smoothly through waypoints or spline points with aerodynamic banking.
         /// </summary>
         private IEnumerator AnimateDronePlayback()
         {
+            List<Vector3> trajectoryPath = (useSplineSmoothing && _splinePositions.Count > 1) 
+                ? _splinePositions 
+                : _worldWaypoints;
+
             while (true)
             {
-                for (int i = 0; i < _worldWaypoints.Count - 1; i++)
+                for (int i = 0; i < trajectoryPath.Count - 1; i++)
                 {
-                    Vector3 start = _worldWaypoints[i];
-                    Vector3 end = _worldWaypoints[i + 1];
-                    float duration = Vector3.Distance(start, end) / (5.0f * playbackSpeed);
-                    if (duration < 0.05f) duration = 0.05f;
+                    Vector3 start = trajectoryPath[i];
+                    Vector3 end = trajectoryPath[i + 1];
+                    float duration = Vector3.Distance(start, end) / (6.0f * playbackSpeed);
+                    if (duration < 0.02f) duration = 0.02f;
 
                     float elapsed = 0f;
                     while (elapsed < duration)
@@ -246,7 +312,18 @@ namespace AeroInsight.Simulation
                         Vector3 direction = (end - start).normalized;
                         if (direction != Vector3.zero)
                         {
-                            droneObject.rotation = Quaternion.Slerp(droneObject.rotation, Quaternion.LookRotation(direction), Time.deltaTime * 5f);
+                            Quaternion targetRot = Quaternion.LookRotation(direction);
+
+                            // Calculate aerodynamic bank angle (roll) proportional to yaw rate
+                            if (i < trajectoryPath.Count - 2)
+                            {
+                                Vector3 nextDir = (trajectoryPath[i + 2] - end).normalized;
+                                float turnAngle = Vector3.SignedAngle(direction, nextDir, Vector3.up);
+                                float rollAngle = Mathf.Clamp(-turnAngle * 1.8f, -30f, 30f);
+                                targetRot *= Quaternion.Euler(0f, 0f, rollAngle);
+                            }
+
+                            droneObject.rotation = Quaternion.Slerp(droneObject.rotation, targetRot, Time.deltaTime * 8f);
                         }
 
                         yield return null;
