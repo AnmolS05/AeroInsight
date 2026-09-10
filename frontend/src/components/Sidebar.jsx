@@ -5,7 +5,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { Upload, PlaneTakeoff, Clock, Activity, Search, Trash2, X, Compass, CheckCircle2 } from 'lucide-react';
+import { Upload, PlaneTakeoff, Clock, Activity, Search, Trash2, X, Compass, CheckCircle2, Box, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseFlightLog } from '../utils/flightParser';
@@ -23,6 +23,8 @@ import { parseFlightLog } from '../utils/flightParser';
  * @param {boolean} [props.isMobileOpen=false] - Whether sidebar is open on mobile viewports.
  * @param {Function} [props.onMobileClose] - Callback to dismiss the sidebar on mobile.
  * @param {Function} [props.onSelectSample] - Optional callback to load sample missions directly.
+ * @param {Function} [props.onOpenDigitalTwin] - Callback to open 3D Digital Twin modal.
+ * @param {Function} [props.onOpenSyntheticModal] - Callback to open Synthetic Flight generator modal.
  * @returns {React.ReactElement} The rendered Sidebar component.
  */
 export default function Sidebar({
@@ -34,7 +36,9 @@ export default function Sidebar({
   apiUrl,
   isMobileOpen = false,
   onMobileClose,
-  onSelectSample
+  onSelectSample,
+  onOpenDigitalTwin,
+  onOpenSyntheticModal
 }) {
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -144,6 +148,31 @@ export default function Sidebar({
             </>
           )}
         </button>
+
+        {/* Synthetic Telemetry Generator Trigger */}
+        {onOpenSyntheticModal && (
+          <button
+            onClick={onOpenSyntheticModal}
+            className="w-full py-2 px-3 rounded-xl flex items-center justify-center gap-2 font-medium text-xs tracking-wide bg-purple-600/10 hover:bg-purple-600/20 text-purple-300 border border-purple-500/20 transition-all group"
+            title="Generate synthetic test flights with simulated anomalies"
+          >
+            <Sparkles size={13} className="text-purple-400 group-hover:rotate-12 transition-transform duration-200" />
+            <span>Synthetic Simulation</span>
+          </button>
+        )}
+
+        {/* 3D Digital Twin Quick Launch */}
+        {selectedId && onOpenDigitalTwin && (
+          <button
+            onClick={onOpenDigitalTwin}
+            className="w-full py-2 px-3 rounded-xl flex items-center justify-center gap-2 font-medium text-xs tracking-wide bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/25 transition-all group shadow-sm"
+            title="Launch 3D Digital Twin & Mission Control"
+          >
+            <Box size={13} className="text-cyan-400 group-hover:scale-110 transition-transform duration-200" />
+            <span>Launch 3D Digital Twin</span>
+          </button>
+        )}
+
         <input
           type="file"
           accept=".json,.csv"
@@ -258,7 +287,10 @@ export default function Sidebar({
 
       {/* Footer System Status */}
       <div className="p-4 border-t border-white/[0.06] text-[11px] text-neutral-500 flex items-center justify-between">
-        <span>AeroInsight v2.0</span>
+        <span className="flex items-center gap-1.5 text-neutral-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+          Unity MCP 3D
+        </span>
         <span className="flex items-center gap-1.5 text-neutral-400">
           <CheckCircle2 size={12} className="text-[#30d158]" /> Ready
         </span>

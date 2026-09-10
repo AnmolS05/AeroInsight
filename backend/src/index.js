@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const flightRoutes = require('./routes/flightRoutes');
+const unityRoutes = require('./routes/unityRoutes');
 const errorHandler = require('./middlewares/errorHandler');
 require('./config/database'); // Initialize DB
 
@@ -37,6 +38,7 @@ app.use(express.json({ limit: '10mb' })); // Reduced payload limit from 50mb to 
 app.use(morgan('dev')); // Add request logging
 
 app.use('/api/flights', flightRoutes);
+app.use('/api/unity', unityRoutes);
 
 app.get('/', (req, res) => {
     res.send('AeroInsight Backend API is running.');

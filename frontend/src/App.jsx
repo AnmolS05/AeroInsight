@@ -15,7 +15,9 @@ import toast from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import ReportModal from './components/ReportModal';
 import MapModal from './components/MapModal';
-import { Maximize2, RefreshCw, PlaneTakeoff, Menu, AlertTriangle, ShieldCheck, ArrowRight, MessageSquare, Send } from 'lucide-react';
+import DigitalTwinModal from './components/DigitalTwinModal';
+import SyntheticFlightModal from './components/SyntheticFlightModal';
+import { Maximize2, RefreshCw, PlaneTakeoff, Menu, AlertTriangle, ShieldCheck, ArrowRight, MessageSquare, Send, Box, Sparkles } from 'lucide-react';
 import { SAMPLE_FLIGHTS } from './utils/sampleFlights';
 
 /**
@@ -74,6 +76,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isReportFullscreen, setIsReportFullscreen] = useState(false);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
+  const [isDigitalTwinOpen, setIsDigitalTwinOpen] = useState(false);
+  const [isSyntheticModalOpen, setIsSyntheticModalOpen] = useState(false);
   const [isRegeneratingReport, setIsRegeneratingReport] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -306,6 +310,8 @@ function App() {
         isMobileOpen={isMobileMenuOpen}
         onMobileClose={() => setIsMobileMenuOpen(false)}
         onSelectSample={handleLoadDefaultSample}
+        onOpenDigitalTwin={() => setIsDigitalTwinOpen(true)}
+        onOpenSyntheticModal={() => setIsSyntheticModalOpen(true)}
       />
 
       {/* Main Content Workspace */}
@@ -331,12 +337,22 @@ function App() {
 
           <div className="flex items-center gap-2.5">
             {selectedFlightId && (
-              <div className="flex items-center gap-2 bg-white/[0.06] border border-white/[0.1] rounded-full px-3 py-1 text-xs text-neutral-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#2997ff]" />
-                <span className="font-mono text-[11px] uppercase tracking-wider">
-                  {selectedFlightId.substring(0, 10).toUpperCase()}
-                </span>
-              </div>
+              <>
+                <button
+                  onClick={() => setIsDigitalTwinOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/25 transition-all shadow-sm"
+                  title="Launch 3D Digital Twin & Mission Control"
+                >
+                  <Box size={13} className="text-cyan-400" />
+                  <span>3D Digital Twin</span>
+                </button>
+                <div className="flex items-center gap-2 bg-white/[0.06] border border-white/[0.1] rounded-full px-3 py-1 text-xs text-neutral-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#2997ff]" />
+                  <span className="font-mono text-[11px] uppercase tracking-wider">
+                    {selectedFlightId.substring(0, 10).toUpperCase()}
+                  </span>
+                </div>
+              </>
             )}
           </div>
         </header>
@@ -446,14 +462,24 @@ function App() {
                         </h2>
                         <p className="text-[11px] text-neutral-500">Interactive waypoint progression and coordinates</p>
                       </div>
-                      <button
-                        onClick={() => setIsMapFullscreen(true)}
-                        className="p-1.5 text-neutral-400 hover:text-white rounded-lg hover:bg-white/[0.08] transition-colors"
-                        title="View Fullscreen"
-                        aria-label="Expand map fullscreen"
-                      >
-                        <Maximize2 size={15} />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setIsDigitalTwinOpen(true)}
+                          className="px-2.5 py-1 text-cyan-400 hover:text-white rounded-lg hover:bg-cyan-500/10 border border-cyan-500/20 transition-colors flex items-center gap-1.5 text-[11px] font-medium"
+                          title="Open 3D Digital Twin & Mission Control"
+                        >
+                          <Box size={13} />
+                          <span className="hidden sm:inline">3D Twin</span>
+                        </button>
+                        <button
+                          onClick={() => setIsMapFullscreen(true)}
+                          className="p-1.5 text-neutral-400 hover:text-white rounded-lg hover:bg-white/[0.08] transition-colors"
+                          title="View Fullscreen"
+                          aria-label="Expand map fullscreen"
+                        >
+                          <Maximize2 size={15} />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex-1 w-full h-full min-h-0 rounded-xl overflow-hidden border border-white/[0.08]">
@@ -693,6 +719,26 @@ function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* 3D Digital Twin & Mission Control Modal */}
+      <DigitalTwinModal
+        isOpen={isDigitalTwinOpen}
+        onClose={() => setIsDigitalTwinOpen(false)}
+        flightId={selectedFlightId}
+        telemetry={flightData}
+        apiUrl={API_BASE_URL}
+      />
+
+      {/* Synthetic Flight Generator Modal */}
+      <SyntheticFlightModal
+        isOpen={isSyntheticModalOpen}
+        onClose={() => setIsSyntheticModalOpen(false)}
+        apiUrl={API_BASE_URL}
+        onFlightCreated={(newFlightId) => {
+          fetchFlights();
+          handleFlightSelect(newFlightId);
+        }}
+      />
     </div>
   );
 }

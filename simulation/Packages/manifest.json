@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "com.anklebreaker.unity-mcp-plugin": "https://github.com/AnkleBreaker-Studio/unity-mcp-plugin.git",
+    "com.unity.modules.ai": "1.0.0",
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.audio": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.terrain": "1.0.0",
+    "com.unity.modules.ui": "1.0.0",
+    "com.unity.modules.uielements": "1.0.0",
+    "com.unity.ugui": "1.0.0"
+  }
+}

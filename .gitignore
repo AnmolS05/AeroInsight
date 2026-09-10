@@ -120,3 +120,13 @@ dist
 
 .vercel
 .env*
+deleted/
+# Unity cache
+[Tt]emp/
+[Ll]ibrary/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+*.csproj
+*.unityproj
+*.sln
