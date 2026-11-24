@@ -175,6 +175,12 @@ namespace AeroInsight.Editor
                     _mainThreadQueue.Enqueue(() => ExecuteSwarmSync(body));
                     responseJson = "{\"success\":true,\"message\":\"Tactical swarm formation synchronized in Unity scene.\"}";
                 }
+                else if (path == "/api/timeline-scrub" && request.HttpMethod == "POST")
+                {
+                    string body = ReadRequestBody(request);
+                    _mainThreadQueue.Enqueue(() => ExecuteTimelineScrub(body));
+                    responseJson = "{\"success\":true,\"message\":\"Timeline position synchronized in Unity SceneView.\"}";
+                }
                 else
                 {
                     statusCode = 404;
@@ -233,12 +239,12 @@ namespace AeroInsight.Editor
         /// </summary>
         private static void ExecuteFlightReconstruction(string jsonBody)
         {
-            var reconstructor = UnityEngine.Object.FindFirstObjectByType<DroneFlightReconstructor>();
+            var reconstructor = UnityEngine.Object.FindAnyObjectByType<DroneFlightReconstructor>();
             if (reconstructor == null)
             {
                 Debug.LogWarning("[AeroInsight MCP] No DroneFlightReconstructor found in scene. Bootstrapping scene first...");
                 AeroInsightSceneBuilder.BootstrapScene();
-                reconstructor = UnityEngine.Object.FindFirstObjectByType<DroneFlightReconstructor>();
+                reconstructor = UnityEngine.Object.FindAnyObjectByType<DroneFlightReconstructor>();
             }
 
             if (reconstructor != null)
@@ -248,7 +254,7 @@ namespace AeroInsight.Editor
             }
 
             // Concept 2: Procedural environment obstacle generation
-            var obstacleGen = UnityEngine.Object.FindFirstObjectByType<EnvironmentObstacleGenerator>();
+            var obstacleGen = UnityEngine.Object.FindAnyObjectByType<EnvironmentObstacleGenerator>();
             if (obstacleGen != null)
             {
                 obstacleGen.ClearObstacles();
@@ -294,7 +300,7 @@ namespace AeroInsight.Editor
                     Debug.Log($"[AeroInsight MCP] SceneView camera oriented toward coordinates: {target}.");
                 }
 
-                var camCtrl = UnityEngine.Object.FindFirstObjectByType<MissionControlCameraController>();
+                var camCtrl = UnityEngine.Object.FindAnyObjectByType<MissionControlCameraController>();
                 if (camCtrl != null)
                 {
                     camCtrl.FocusTarget(target, 45f);
@@ -313,7 +319,7 @@ namespace AeroInsight.Editor
         {
             try
             {
-                var simulator = UnityEngine.Object.FindFirstObjectByType<PhysicsAnomalySimulator>();
+                var simulator = UnityEngine.Object.FindAnyObjectByType<PhysicsAnomalySimulator>();
                 if (simulator != null)
                 {
                     var matchWind = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"windSpeedKnots\"\\s*:\\s*(-?[0-9\\.]+)");
@@ -516,6 +522,53 @@ namespace AeroInsight.Editor
             catch (Exception ex)
             {
                 Debug.LogWarning($"[AeroInsight MCP] Swarm synchronization error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Synchronizes real-time playback scrubber progress from web dashboard to drone position and SceneView.
+        /// Implements Concept 4 (Dual-Screen Mission Control: Timeline -> Unity Sync).
+        /// </summary>
+        private static void ExecuteTimelineScrub(string jsonBody)
+        {
+            try
+            {
+                float x = 0f, y = 25f, z = 0f, heading = 0f;
+                var matchX = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"x\"\\s*:\\s*(-?[0-9\\.]+)");
+                var matchY = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"y\"\\s*:\\s*(-?[0-9\\.]+)");
+                var matchZ = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"z\"\\s*:\\s*(-?[0-9\\.]+)");
+                var matchH = System.Text.RegularExpressions.Regex.Match(jsonBody, "\"heading\"\\s*:\\s*(-?[0-9\\.]+)");
+
+                if (matchX.Success && float.TryParse(matchX.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float px)) x = px;
+                if (matchY.Success && float.TryParse(matchY.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float py)) y = py;
+                if (matchZ.Success && float.TryParse(matchZ.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float pz)) z = pz;
+                if (matchH.Success && float.TryParse(matchH.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float ph)) heading = ph;
+
+                Vector3 targetPos = new Vector3(x, y, z);
+
+                GameObject drone = GameObject.Find("AeroInsight_Drone");
+                if (drone != null)
+                {
+                    drone.transform.position = targetPos;
+                    drone.transform.rotation = Quaternion.Euler(0f, heading, 0f);
+                }
+
+                SceneView sceneView = SceneView.lastActiveSceneView;
+                if (sceneView != null)
+                {
+                    sceneView.LookAt(targetPos, Quaternion.Euler(28, heading + 35f, 0), 25f);
+                    sceneView.Repaint();
+                }
+
+                var camCtrl = UnityEngine.Object.FindAnyObjectByType<MissionControlCameraController>();
+                if (camCtrl != null)
+                {
+                    camCtrl.focusPosition = targetPos;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[AeroInsight MCP] Timeline scrub error: {ex.Message}");
             }
         }
     }

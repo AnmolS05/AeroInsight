@@ -95,8 +95,8 @@ namespace AeroInsight.Simulation
 
             _rb.mass = config.droneMassKg;
             _rb.useGravity = true;
-            _rb.drag = 0.1f;
-            _rb.angularDrag = 0.2f;
+            _rb.linearDamping = 0.1f;
+            _rb.angularDamping = 0.2f;
         }
 
         /// <summary>
@@ -105,10 +105,17 @@ namespace AeroInsight.Simulation
         /// <param name="configJson">JSON string representing PhysicsSimulationConfig</param>
         public void StartPhysicsReconstruction(string configJson)
         {
+            if (config == null) config = new PhysicsSimulationConfig();
+            if (recordedFrames == null) recordedFrames = new List<SimulatedTelemetryFrame>();
+
             if (!string.IsNullOrEmpty(configJson))
             {
                 config = JsonUtility.FromJson<PhysicsSimulationConfig>(configJson);
+                if (config == null) config = new PhysicsSimulationConfig();
             }
+
+            if (_rb == null) _rb = GetComponent<Rigidbody>();
+            if (_rb == null) _rb = gameObject.AddComponent<Rigidbody>();
 
             _rb.mass = config.droneMassKg;
             _rb.linearVelocity = Vector3.zero;

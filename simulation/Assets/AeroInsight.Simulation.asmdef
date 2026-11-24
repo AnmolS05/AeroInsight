@@ -1,0 +1,10 @@
+{
+    "name": "AeroInsight.Simulation",
+    "rootNamespace": "AeroInsight.Simulation",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferenceAssembly": false,
+    "createAssemblyInOriginFolder": true
+}

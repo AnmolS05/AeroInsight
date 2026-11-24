@@ -77,6 +77,15 @@ namespace AeroInsight.Simulation
         }
 
         /// <summary>
+        /// Focuses camera on target with specified orbit distance.
+        /// </summary>
+        public void FocusTarget(Vector3 target, float distance = 45f)
+        {
+            orbitDistance = distance;
+            FocusOnAnomaly(target);
+        }
+
+        /// <summary>
         /// Sets camera to chase the flying drone along its trajectory.
         /// </summary>
         public void ChaseDrone()

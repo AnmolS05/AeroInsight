@@ -1,0 +1,28 @@
+fileFormatVersion: 2
+guid: a7b3c9d1e5f24867b8c0d3e6f9a1b2c4
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  isPreloaded: 0
+  iconMap: {}
+  compilationAssemblyName: AeroInsight.Simulation
+  referenceAssemblyNames: []
+  optionalUnityReferences: []
+  platformData:
+    Any:
+      enabled: 1
+      requiresAnyPlatform: 1
+    Editor:
+      enabled: 1
+      requiresEditorPlatform: 1
+    Standalone:
+      enabled: 1
+      requiresStandalonePlatform: 1
+  customPackageFolderPath: 
+  includePlatforms: []
+  excludePlatforms: []
+  allowDebugCode: 0
+  overrideRefAssembly: 0
+  generateAssemblyInfo: 0
+  entryPoint: 
+  rootNamespace: AeroInsight.Simulation
+  extraReferences: []

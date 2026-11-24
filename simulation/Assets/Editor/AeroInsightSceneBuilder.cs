@@ -22,7 +22,7 @@ namespace AeroInsight.Editor
             Undo.SetCurrentGroupName("Bootstrap AeroInsight Scene");
 
             // 2. Setup Lighting & Sun
-            Light sunLight = Object.FindFirstObjectByType<Light>();
+            Light sunLight = Object.FindAnyObjectByType<Light>();
             GameObject sunObj;
             if (sunLight == null)
             {
@@ -130,10 +130,24 @@ namespace AeroInsight.Editor
 
             LineRenderer line = droneObj.GetComponent<LineRenderer>();
             if (line == null) line = droneObj.AddComponent<LineRenderer>();
-            Material lineMat = new Material(Shader.Find("Sprites/Default"));
-            lineMat.color = new Color(0f, 0.8f, 1f, 0.9f);
-            line.material = lineMat;
+            Material emissiveLineMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Motor_Cyan_Emissive.mat");
+            if (emissiveLineMat != null)
+            {
+                line.material = emissiveLineMat;
+            }
+            else
+            {
+                Material lineMat = new Material(Shader.Find("Sprites/Default"));
+                lineMat.color = new Color(0f, 0.8f, 1f, 0.9f);
+                line.material = lineMat;
+            }
             reconstructor.trajectoryLine = line;
+
+            GameObject beaconPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resources/AnomalyBeacon.prefab");
+            if (beaconPrefab != null)
+            {
+                reconstructor.anomalyBeaconPrefab = beaconPrefab;
+            }
 
             PhysicsAnomalySimulator simulator = droneObj.GetComponent<PhysicsAnomalySimulator>();
             if (simulator == null) simulator = droneObj.AddComponent<PhysicsAnomalySimulator>();
@@ -169,10 +183,18 @@ namespace AeroInsight.Editor
                 Undo.RegisterCreatedObjectUndo(envObj, "Create Environment Obstacle Generator");
             }
 
-            // Mark scene dirty for saving
+            // 8. Auto-frame SceneView on Drone
+            Selection.activeGameObject = droneObj;
+            if (SceneView.lastActiveSceneView != null)
+            {
+                SceneView.lastActiveSceneView.FrameSelected();
+                SceneView.lastActiveSceneView.Repaint();
+            }
+
+            // Mark scene dirty and save
             EditorSceneManager.MarkSceneDirty(currentScene);
-            Debug.Log("[AeroInsight] Simulation Scene successfully bootstrapped and configured for MCP integration!");
-            EditorUtility.DisplayDialog("AeroInsight Digital Twin", "AeroInsight 3D Simulation Scene has been bootstrapped!\n\n- Virtual Drone initialized\n- LineRenderer Trajectory configured\n- PhysicsAnomalySimulator armed\n- MissionControl Camera calibrated\n- Procedural Environment Obstacle Generator active", "OK");
+            EditorSceneManager.SaveScene(currentScene);
+            Debug.Log("[AeroInsight] Simulation Scene successfully bootstrapped, saved, and framed for MCP integration!");
         }
     }
 }

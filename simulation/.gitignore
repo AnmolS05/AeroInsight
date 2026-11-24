@@ -1,0 +1,63 @@
+# Unity Assembly Definition Files
+#*.asmdef
+#*.asmdef.meta
+
+# Stray duplicate Unity project folders (keep only the root simulation/ project)
+aero_insight/
+"My project"/
+
+# Unity generated object file
+obj/
+
+# By default, the following file types are not included in the project
+# as they are not needed for development and ship with the engine:
+*.csproj
+*.sln
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Unity3D generated meta files
+project.xml
+hub.xml
+flow.xml
+build.log
+
+# PlayMode state for example scripted assembly reloads
+Assembly-CSharp-Editor-firstpass.dll.mdb
+Assembly-CSharp-Editor.dll.mdb
+Assembly-CSharp.dll.mdb
+
+# OS generated icon files
+.DS_Store
+Thumbs.db
+
+# Visual studio cache directory
+.vs/
+.vscode/
+[Uu]ser[Ss]ettings/
+*.slnx
+
+# Auto-installed node modules (not needed, packages managed by Unity Package Manager)
+node_modules/
+
+# Unity package manager cache
+Library/
+Temp/
+Build/
+Builds/
+
+# Unity default asset database
+Assembly-CSharp.cs
+Assembly-CSharp-Editor.cs
+Assembly-UnityScript.cs
+Assembly-UnityScript-Editor.cs
+
+# Crash logs
+*.crash
+*.dmp
