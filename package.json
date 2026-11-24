@@ -1,13 +1,13 @@
 {
   "name": "aeroinsight",
-  "version": "1.1.0",
-  "description": "AeroInsight is a full-stack web application designed for drone telemetry analysis. It integrates a Node.js/Express backend, an SQLite database for log storage, a React/Vite frontend with dynamic mapping via Leaflet, and AI-powered anomaly detection using the Google Gemini API.",
+  "version": "2.0.0",
+  "description": "AeroInsight is an enterprise drone telemetry intelligence platform integrating Node.js, PostgreSQL/SQLite, React/Vite, Leaflet geospatial mapping, Google Gemini GenAI, and a Unity MCP 3D Digital Twin simulation suite.",
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "install-all": "npm install && npm install --prefix backend && npm install --prefix frontend",
-    "build": "cd frontend && npm install && npm run build && cd .. && cp -r frontend/dist public",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "cd frontend && npm install && npm run build && cd .. && node -e \"fs.cpSync('frontend/dist', 'public', {recursive: true})\"",
+    "test": "node scratch/test_comprehensive_suite.js",
     "format": "prettier --write .",
     "lint": "eslint . --fix",
     "prepare": "husky"

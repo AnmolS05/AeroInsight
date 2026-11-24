@@ -120,6 +120,8 @@ dist
 
 .vercel
 .env*
+!.env.example
+!**/.env.example
 deleted/
 # Unity cache
 [Tt]emp/
@@ -130,3 +132,5 @@ deleted/
 *.csproj
 *.unityproj
 *.sln
+**/[Uu]ser[Ss]ettings/
+*.slnx
