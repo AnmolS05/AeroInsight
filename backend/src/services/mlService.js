@@ -9,8 +9,8 @@ try {
     console.error("Could not load ML model:", e);
 }
 
-function predictRisk(features) {
-    if (!modelData || !modelData.tree) return null;
+function evaluateTree(features) {
+    if (!modelData || !modelData.tree) return 0;
     
     const tree = modelData.tree;
     let node = 0;
@@ -31,11 +31,38 @@ function predictRisk(features) {
     }
     
     // Return the predicted class (0 = Low Risk, 1 = High Risk)
-    // The value array shape is [1, num_classes] for each node
     const classValues = tree.value[node][0];
-    const riskClass = classValues[1] > classValues[0] ? 1 : 0;
-    
-    return riskClass;
+    return classValues[1] > classValues[0] ? 1 : 0;
+}
+
+/**
+ * Predicts the operational risk of a flight from telemetry or feature map.
+ *
+ * @param {Array<Object>|Object} data - Array of telemetry points or feature dictionary.
+ * @returns {Object|number} Structured risk evaluation.
+ */
+function predictRisk(data) {
+    if (!data) {
+        return {
+            riskLevel: 'Low Risk',
+            riskScore: 0.1,
+            anomalies: []
+        };
+    }
+
+    if (Array.isArray(data)) {
+        const analysis = analyzeFlightRisk(data);
+        const anomalies = data.filter((p) => p.issue && p.issue !== 'none');
+        const isHigh = analysis?.riskScore === 'High Risk' || anomalies.length > 0;
+        return {
+            riskLevel: isHigh ? 'High Risk' : 'Low Risk',
+            riskScore: isHigh ? 0.85 : 0.15,
+            anomalies,
+            features: analysis?.features || {}
+        };
+    }
+
+    return evaluateTree(data);
 }
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -90,7 +117,7 @@ function analyzeFlightRisk(telemetryData) {
         battery_drain
     };
     
-    const riskLabel = predictRisk(features);
+    const riskLabel = evaluateTree(features);
     
     return {
         features,
@@ -99,5 +126,7 @@ function analyzeFlightRisk(telemetryData) {
 }
 
 module.exports = {
-    analyzeFlightRisk
+    analyzeFlightRisk,
+    predictRisk,
+    calculateDistance
 };

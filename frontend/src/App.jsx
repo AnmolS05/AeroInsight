@@ -113,11 +113,15 @@ function App() {
     }
 
     // Default to bundled sample flights for immediate zero-friction evaluation
-    setFlights(SAMPLE_FLIGHTS.map(sf => ({
+    const sampleList = SAMPLE_FLIGHTS.map(sf => ({
       id: sf.id,
       name: sf.name,
       created_at: sf.created_at
-    })));
+    }));
+    setFlights(sampleList);
+    if (!selectedFlightId && sampleList.length > 0) {
+      handleFlightSelect(sampleList[0].id);
+    }
   };
 
   /**
@@ -376,7 +380,12 @@ function App() {
         isMobileOpen={isMobileMenuOpen}
         onMobileClose={() => setIsMobileMenuOpen(false)}
         onSelectSample={handleLoadDefaultSample}
-        onOpenDigitalTwin={() => setIsDigitalTwinOpen(true)}
+        onOpenDigitalTwin={() => {
+          if (!selectedFlightId && SAMPLE_FLIGHTS.length > 0) {
+            handleFlightSelect(SAMPLE_FLIGHTS[0].id);
+          }
+          setIsDigitalTwinOpen(true);
+        }}
         onOpenSyntheticModal={() => setIsSyntheticModalOpen(true)}
         onOpenAIChat={() => setIsAIChatOpen(true)}
       />
@@ -787,13 +796,15 @@ function App() {
       </AnimatePresence>
 
       {/* 3D Digital Twin & Mission Control Modal */}
-      <DigitalTwinModal
-        isOpen={isDigitalTwinOpen}
-        onClose={() => setIsDigitalTwinOpen(false)}
-        flightId={selectedFlightId}
-        telemetry={flightData}
-        apiUrl={API_BASE_URL}
-      />
+      <ErrorBoundary>
+        <DigitalTwinModal
+          isOpen={isDigitalTwinOpen}
+          onClose={() => setIsDigitalTwinOpen(false)}
+          flightId={selectedFlightId}
+          telemetry={flightData}
+          apiUrl={API_BASE_URL}
+        />
+      </ErrorBoundary>
 
       {/* Synthetic Flight Generator Modal */}
       <SyntheticFlightModal

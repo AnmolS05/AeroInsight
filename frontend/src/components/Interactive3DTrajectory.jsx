@@ -78,26 +78,42 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
   const isDraggingRef = useRef(false);
   const lastMouseRef = useRef({ x: 0, y: 0 });
   const lastSyncTimeRef = useRef(0);
+  const wsRef = useRef(null);
+  const syncIntervalRef = useRef(null);
 
   // 1. Process 3D Coordinates & Metrics Relative to Origin
   const waypoints3D = useMemo(() => {
-    if (!telemetry || telemetry.length === 0) return [];
+    if (!Array.isArray(telemetry) || telemetry.length === 0) return [];
 
-    const originLat = telemetry[0].latitude;
-    const originLon = telemetry[0].longitude;
+    // Filter valid points with numeric coordinates
+    const validPts = telemetry.filter(
+      (pt) =>
+        pt &&
+        typeof pt.latitude === 'number' &&
+        !isNaN(pt.latitude) &&
+        typeof pt.longitude === 'number' &&
+        !isNaN(pt.longitude) &&
+        typeof pt.altitude === 'number' &&
+        !isNaN(pt.altitude)
+    );
+
+    if (validPts.length === 0) return [];
+
+    const originLat = validPts[0].latitude;
+    const originLon = validPts[0].longitude;
     const METERS_PER_DEG_LAT = 111139.0;
     const METERS_PER_DEG_LON = 111139.0 * Math.cos((originLat * Math.PI) / 180.0);
 
-    const pts = telemetry.map((pt, index) => {
+    const pts = validPts.map((pt, index) => {
       const x = (pt.longitude - originLon) * METERS_PER_DEG_LON;
       const y = pt.altitude;
       const z = (pt.latitude - originLat) * METERS_PER_DEG_LAT;
-      const isAnomaly = Boolean(pt.issue && pt.issue.toLowerCase() !== 'none' && pt.issue.trim() !== '');
+      const isAnomaly = Boolean(pt.issue && typeof pt.issue === 'string' && pt.issue.toLowerCase() !== 'none' && pt.issue.trim() !== '');
 
       // Compute heading to next point if available
       let heading = 0;
-      if (index < telemetry.length - 1) {
-        const nextPt = telemetry[index + 1];
+      if (index < validPts.length - 1) {
+        const nextPt = validPts[index + 1];
         const dX = (nextPt.longitude - pt.longitude) * METERS_PER_DEG_LON;
         const dZ = (nextPt.latitude - pt.latitude) * METERS_PER_DEG_LAT;
         heading = (Math.atan2(dX, dZ) * 180 / Math.PI + 360) % 360;
@@ -137,6 +153,74 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
       normZ: (p.z - centerZ) / (maxSpan * 0.7)
     }));
   }, [telemetry]);
+
+  // WebSocket connection to Unity live bridge for timeline sync
+  useEffect(() => {
+    if (!apiUrl || !flightId) return;
+
+    const wsUrl = apiUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+    const ws = new WebSocket(`${wsUrl}/ws/viewport`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log('[AeroInsight] WebSocket viewport sync connected');
+      setUnitySyncEnabled(true);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'connected') {
+          setUnitySyncEnabled(true);
+        } else if (msg.type === 'focus_result' && msg.success !== false) {
+          // Unity confirmed camera focus — could update UI state
+        }
+      } catch {}
+    };
+
+    ws.onclose = () => {
+      setUnitySyncEnabled(false);
+      if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+    };
+
+    ws.onerror = () => {
+      setUnitySyncEnabled(false);
+    };
+
+    return () => {
+      if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+      ws.close();
+    };
+  }, [apiUrl, flightId]);
+
+  // Debounced timeline → Unity sync
+  useEffect(() => {
+    if (!unitySyncEnabled || !apiUrl || !flightId) return;
+
+    const now = Date.now();
+    if (now - lastSyncTimeRef.current < 500) return; // debounce: max 2 Hz
+    lastSyncTimeRef.current = now;
+
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    // Calculate current 3D position from telemetry at playbackProgress
+    const pts = waypoints3D;
+    if (pts.length === 0) return;
+    const safeProg = typeof playbackProgress === 'number' && !isNaN(playbackProgress)
+      ? Math.max(0, Math.min(1, playbackProgress))
+      : 0;
+    const idx = Math.max(0, Math.min(Math.floor(safeProg * (pts.length - 1)), pts.length - 1));
+    const pt = pts[idx] || pts[0];
+    if (!pt) return;
+
+    wsRef.current.send(JSON.stringify({
+      type: 'focus_waypoint',
+      flightId,
+      position: { x: pt.x || 0, y: pt.y || 0, z: pt.z || 0 },
+      description: pt.raw?.issue || `Waypoint ${idx}`
+    }));
+  }, [playbackProgress, unitySyncEnabled, apiUrl, flightId, waypoints3D]);
+
 
   // Catmull-Rom Spline Curve Interpolation
   const splineTrajectory = useMemo(() => {
@@ -243,36 +327,70 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
   // Interpolated Live Drone State along Trajectory & Clearance calculation
   const activeDroneState = useMemo(() => {
     if (waypoints3D.length === 0) {
-      return { altitude: 0, battery: 100, heading: 0, speed: 0, isAnomaly: false, issue: null, x: 0, y: 0, z: 0, clearance: 50 };
+      return { altitude: 0, battery: 100, heading: 0, speed: '0.0', isAnomaly: false, issue: null, x: 0, y: 0, z: 0, clearance: '50.0' };
+    }
+
+    if (waypoints3D.length === 1) {
+      const p0 = waypoints3D[0];
+      return {
+        altitude: parseFloat((typeof p0.y === 'number' && !isNaN(p0.y) ? p0.y : 0).toFixed(1)),
+        battery: parseFloat((typeof p0.raw?.battery === 'number' && !isNaN(p0.raw.battery) ? p0.raw.battery : 100).toFixed(1)),
+        heading: Math.round(typeof p0.heading === 'number' && !isNaN(p0.heading) ? p0.heading : 0),
+        speed: '0.0',
+        isAnomaly: Boolean(p0.isAnomaly),
+        issue: p0.raw?.issue || null,
+        x: p0.x || 0,
+        y: p0.y || 0,
+        z: p0.z || 0,
+        clearance: '50.0'
+      };
     }
 
     const totalSegments = waypoints3D.length - 1;
-    const exactPos = playbackProgress * totalSegments;
-    const idxA = Math.floor(exactPos);
-    const idxB = Math.min(idxA + 1, totalSegments);
+    const safeProgress = typeof playbackProgress === 'number' && !isNaN(playbackProgress)
+      ? Math.max(0, Math.min(1, playbackProgress))
+      : 0;
+    const exactPos = safeProgress * totalSegments;
+    const idxA = Math.max(0, Math.min(Math.floor(exactPos), totalSegments));
+    const idxB = Math.max(0, Math.min(idxA + 1, totalSegments));
     const subT = exactPos - idxA;
 
-    const pA = waypoints3D[idxA];
-    const pB = waypoints3D[idxB];
+    const pA = waypoints3D[idxA] || waypoints3D[0];
+    const pB = waypoints3D[idxB] || pA;
 
-    const altitude = pA.y + (pB.y - pA.y) * subT;
-    const battery = pA.raw.battery + ((pB.raw.battery || pA.raw.battery) - pA.raw.battery) * subT;
-    const heading = pA.heading;
+    const altA = typeof pA.y === 'number' && !isNaN(pA.y) ? pA.y : 0;
+    const altB = typeof pB.y === 'number' && !isNaN(pB.y) ? pB.y : altA;
+    const altitude = altA + (altB - altA) * subT;
 
-    const curX = pA.x + (pB.x - pA.x) * subT;
+    const batA = typeof pA.raw?.battery === 'number' && !isNaN(pA.raw.battery) ? pA.raw.battery : 100;
+    const batB = typeof pB.raw?.battery === 'number' && !isNaN(pB.raw.battery) ? pB.raw.battery : batA;
+    const battery = batA + (batB - batA) * subT;
+
+    const heading = typeof pA.heading === 'number' && !isNaN(pA.heading) ? pA.heading : 0;
+
+    const xA = typeof pA.x === 'number' && !isNaN(pA.x) ? pA.x : 0;
+    const xB = typeof pB.x === 'number' && !isNaN(pB.x) ? pB.x : xA;
+    const curX = xA + (xB - xA) * subT;
     const curY = altitude;
-    const curZ = pA.z + (pB.z - pA.z) * subT;
+
+    const zA = typeof pA.z === 'number' && !isNaN(pA.z) ? pA.z : 0;
+    const zB = typeof pB.z === 'number' && !isNaN(pB.z) ? pB.z : zA;
+    const curZ = zA + (zB - zA) * subT;
 
     // Approximate groundspeed in m/s
-    const distM = Math.sqrt(Math.pow(pB.x - pA.x, 2) + Math.pow(pB.z - pA.z, 2));
+    const distM = Math.sqrt(Math.pow(xB - xA, 2) + Math.pow(zB - zA, 2));
     const speed = distM > 0 ? (distM * 1.5).toFixed(1) : (12.4).toFixed(1);
 
-    const isAnomaly = pA.isAnomaly || pB.isAnomaly;
-    const issue = pA.isAnomaly ? pA.raw.issue : (pB.isAnomaly ? pB.raw.issue : null);
+    const isAnomaly = Boolean(pA.isAnomaly || pB.isAnomaly);
+    const issue = pA.isAnomaly ? pA.raw?.issue : (pB.isAnomaly ? pB.raw?.issue : null);
 
     // Compute estimated obstacle clearance
-    const normX = pA.normX + (pB.normX - pA.normX) * subT;
-    const normZ = pA.normZ + (pB.normZ - pA.normZ) * subT;
+    const normXA = typeof pA.normX === 'number' && !isNaN(pA.normX) ? pA.normX : 0;
+    const normXB = typeof pB.normX === 'number' && !isNaN(pB.normX) ? pB.normX : normXA;
+    const normZA = typeof pA.normZ === 'number' && !isNaN(pA.normZ) ? pA.normZ : 0;
+    const normZB = typeof pB.normZ === 'number' && !isNaN(pB.normZ) ? pB.normZ : normZA;
+    const normX = normXA + (normXB - normXA) * subT;
+    const normZ = normZA + (normZB - normZA) * subT;
     const distToCenter = Math.sqrt(normX * normX + normZ * normZ);
     const clearance = Math.max(4.2, (distToCenter * 45.0)).toFixed(1);
 
@@ -506,25 +624,31 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
     let cameraFocusY = 0;
     let cameraFocusZ = 0;
 
-    const totalSegs = waypoints3D.length - 1;
-    const exactPos = playbackProgress * totalSegs;
-    const currentA = waypoints3D[Math.floor(exactPos)];
-    const currentB = waypoints3D[Math.min(Math.floor(exactPos) + 1, totalSegs)];
-    const subFraction = exactPos - Math.floor(exactPos);
+    const totalSegs = Math.max(1, waypoints3D.length - 1);
+    const safeProg = typeof playbackProgress === 'number' && !isNaN(playbackProgress)
+      ? Math.max(0, Math.min(1, playbackProgress))
+      : 0;
+    const exactPos = safeProg * (waypoints3D.length - 1);
+    const idxA = Math.max(0, Math.min(Math.floor(exactPos), waypoints3D.length - 1));
+    const idxB = Math.max(0, Math.min(idxA + 1, waypoints3D.length - 1));
+    const subFraction = exactPos - idxA;
 
-    const droneNormX = currentA.normX + (currentB.normX - currentA.normX) * subFraction;
-    const droneNormY = currentA.normY + (currentB.normY - currentA.normY) * subFraction;
-    const droneNormZ = currentA.normZ + (currentB.normZ - currentA.normZ) * subFraction;
+    const currentA = waypoints3D[idxA] || waypoints3D[0] || { normX: 0, normY: 0, normZ: 0, heading: 0 };
+    const currentB = waypoints3D[idxB] || currentA;
+
+    const droneNormX = (currentA.normX || 0) + ((currentB.normX || 0) - (currentA.normX || 0)) * subFraction;
+    const droneNormY = (currentA.normY || 0) + ((currentB.normY || 0) - (currentA.normY || 0)) * subFraction;
+    const droneNormZ = (currentA.normZ || 0) + ((currentB.normZ || 0) - (currentA.normZ || 0)) * subFraction;
 
     if (cameraMode === 'chase') {
       effectivePitch = 22;
-      effectiveYaw = currentA.heading;
+      effectiveYaw = typeof currentA.heading === 'number' && !isNaN(currentA.heading) ? currentA.heading : 0;
       cameraFocusX = droneNormX;
       cameraFocusY = droneNormY;
       cameraFocusZ = droneNormZ;
     } else if (cameraMode === 'cockpit') {
       effectivePitch = 8;
-      effectiveYaw = currentA.heading;
+      effectiveYaw = typeof currentA.heading === 'number' && !isNaN(currentA.heading) ? currentA.heading : 0;
       cameraFocusX = droneNormX;
       cameraFocusY = droneNormY;
       cameraFocusZ = droneNormZ;
@@ -814,7 +938,8 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
       ctx.fill();
 
       // Heading Vector Direction Indicator
-      const radH = (currentA.heading * Math.PI) / 180;
+      const curHeadDeg = typeof currentA?.heading === 'number' && !isNaN(currentA.heading) ? currentA.heading : 0;
+      const radH = (curHeadDeg * Math.PI) / 180;
       const headX = liveDroneProj.sx + Math.sin(radH) * 16;
       const headY = liveDroneProj.sy - Math.cos(radH) * 16;
 
@@ -872,7 +997,8 @@ export default function Interactive3DTrajectory({ telemetry = [], onSelectWaypoi
 
       // Draw Tactical Swarm Wingman Drone (Concept 3 & 4)
       if (showSwarmWingman) {
-        const radHeading = (currentA.heading * Math.PI) / 180;
+        const curWingHeading = typeof currentA?.heading === 'number' && !isNaN(currentA.heading) ? currentA.heading : 0;
+        const radHeading = (curWingHeading * Math.PI) / 180;
         const wingOffsetRight = 0.18;
         const wingOffsetBack = -0.14;
         const wingAltStagger = 0.04;

@@ -4,11 +4,13 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
+const http = require('http');
 const flightRoutes = require('./routes/flightRoutes');
 const unityRoutes = require('./routes/unityRoutes');
 const assistantRoutes = require('./routes/assistantRoutes');
 const errorHandler = require('./middlewares/errorHandler');
 require('./config/database'); // Initialize DB
+const { createServer } = require('./services/websocketBridge');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -51,9 +53,20 @@ app.use(errorHandler);
 
 // Start server if executed directly (e.g., node src/index.js), bypass if imported (e.g., by Vercel/Serverless)
 if (require.main === module) {
-    app.listen(PORT, () => {
+    const appInstance = app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
     });
+
+    // Start WebSocket viewport sync bridge
+    try {
+        const wsServer = createServer();
+        const WS_PORT = parseInt(process.env.WS_PORT || '8765', 10);
+        wsServer.listen(WS_PORT, () => {
+            console.log(`[AeroInsight] WebSocket viewport bridge active on ws://localhost:${WS_PORT}/ws/viewport`);
+        });
+    } catch (err) {
+        console.warn('[AeroInsight] WebSocket bridge failed to start:', err.message);
+    }
 }
 
 module.exports = app;

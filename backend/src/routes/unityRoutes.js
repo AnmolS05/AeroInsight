@@ -32,4 +32,12 @@ router.post('/blackbox', unityController.generateBlackBoxReport);
 // Subsystem Component Diagnostics & Unity Inspection
 router.post('/component-inspect', unityController.inspectComponent);
 
+// Model Context Protocol (MCP) Direct Tool Execution & Pipeline
+router.get('/mcp-status', unityController.getMcpStatus);
+router.post('/mcp-execute', unityController.executeMcpTool);
+router.post('/mcp-twin/:id', validateFlightId, unityController.reconstructMcpTwin);
+router.post('/mcp-crash/:id', validateFlightId, unityController.simulateMcpCrash);
+router.post('/mcp-generate', unityController.generateSyntheticViaMcp);
+
 module.exports = router;
+

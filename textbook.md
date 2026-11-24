@@ -1224,3 +1224,108 @@ graph TD
     
     I --> J[Return 201 Success Response]
 ```
+
+---
+
+## Chapter 18: Unity Model Context Protocol (MCP) 3D Digital Twin & Simulation Platform
+
+### Why AeroInsight integrates with Unity via Model Context Protocol (MCP)
+Traditional drone fleet management software is confined to flat 2D maps and static charts. However, investigating complex aeronautical anomalies—such as aerodynamic stall, vortex ring state, microburst wind shear, and multi-rotor physical degradation—demands full spatial 3D physics and visual immersion.
+
+By integrating a **Model Context Protocol (MCP)** client into AeroInsight, the system bridges an LLM-driven web architecture with the **Unity 3D game engine**. Through 80+ exposed MCP tools (such as `unity_gameobject_create`, `unity_component_add`, `unity_play_mode`, and `unity_selection_focus_scene_view`), an AI flight assistant can autonomously construct digital twins, simulate physics crash dynamics, generate synthetic training telemetry, and steer Unity viewport cameras in real-time.
+
+### The 4 Core Pillars of the Unity MCP Integration
+
+```text
+[ AeroInsight Frontend (React / Leaflet / 3D Canvas) ]
+                         │
+                         ▼ (HTTP REST / JSON-RPC)
+[ AeroInsight Backend (Node.js / Express + PostgreSQL) ]
+                         │
+                         ▼ (Model Context Protocol stdio Client)
+[ Local Unity MCP Server (Node.js / @modelcontextprotocol/sdk) ]
+                         │
+                         ▼ (HTTP Bridge / Port 7890)
+[ Unity Editor 6000.6.0f1 (unity-mcp-plugin C# Receiver) ]
+```
+
+#### Visual MCP Architectural Flow
+```mermaid
+graph TD
+    A[React Web Client] -->|POST /api/unity/*| B(Express Backend Router)
+    B --> C[unityMcpService.js]
+    C --> D[unityMcpClient.js - MCP Client]
+    D -->|stdio JSON-RPC 2.0| E(Local Unity MCP Server)
+    E -->|HTTP POST :7890| F[AeroInsightLiveBridgeReceiver.cs]
+    F --> G[(Active Unity Scene)]
+    G --> H[DroneFlightReconstructor]
+    G --> I[PhysicsAnomalySimulator]
+    G --> J[MissionControlCameraController]
+```
+
+---
+
+### Pillar 1: The AI Digital Twin Creator (3D Flight Reconstructor)
+* **What it does:** Converts raw GPS telemetry coordinates (latitude, longitude, altitude) into local metric Cartesian coordinates $(x, y, z)$ using equirectangular projection:
+  $$x = 111139.0 \cdot \cos(\text{lat}_0) \cdot (\text{lon} - \text{lon}_0)$$
+  $$y = \text{alt}$$
+  $$z = 111139.0 \cdot (\text{lat} - \text{lat}_0)$$
+* **MCP Tool Chain:**
+  1. Calls `unity_gameobject_create` with `primitiveType: "Empty"` to spawn root container `Flight_DigitalTwin_<id>`.
+  2. Calls `unity_gameobject_create` with `primitiveType: "Plane"` to instantiate a 500m ground reference plane.
+  3. Calls `unity_gameobject_create` to position a quadcopter drone model at the initial coordinate.
+  4. Scans for anomaly waypoints (e.g., `Motor Temperature Warning`) and spawns glowing hazard spheres with colliders at the exact 3D coordinates.
+  5. Calls `unity_selection_focus_scene_view` to center the editor camera on the trajectory.
+
+---
+
+### Pillar 2: Physics-Based Anomaly Reconstruction & Crash Analysis
+* **The Problem:** Telemetry logs only tell you *what* happened (e.g. altitude dropped from 120m to 10m in 4 seconds); they don't prove *why* it happened (e.g. whether a 25-knot downdraft or rotor cutoff caused it).
+* **The Physics Model:**
+  Computes empirical vertical aerodynamic drag:
+  $$F_d = \frac{1}{2} \rho v^2 C_d A$$
+  and theoretical terminal descent rate:
+  $$v_t = \sqrt{\frac{2 m g}{\rho C_d A}}$$
+  where $\rho = 1.225\,\text{kg/m}^3$ (air density), $C_d = 1.15$ (drag coefficient), $A = 0.08\,\text{m}^2$ (frontal area), and $m = 2.4\,\text{kg}$.
+* **MCP Simulation Execution:**
+  1. Instantiates drone with `unity_gameobject_create`.
+  2. Injects physics components using `unity_component_add` with `componentType: "Rigidbody"`.
+  3. Spawns obstacle structures (wind turbine towers, buildings).
+  4. Enters Unity Play Mode via `unity_play_mode` (`action: "play"`).
+  5. Computes statistical Goodness-of-Fit ($R^2$) and Root-Mean-Square Error (RMSE) comparing simulated trajectory vs recorded telemetry:
+     $$R^2 = 1 - \frac{\sum (y_i - \hat{y}_i)^2}{\sum (y_i - \bar{y})^2}$$
+  6. If $R^2 > 0.85$, hypothesis is statistically verified as a physical match.
+
+---
+
+### Pillar 3: Synthetic Telemetry Generator (Simulation to Dashboard)
+* **What it does:** Allows engineers and AI copilot to generate realistic, physics-validated telemetry logs for edge cases without risking real hardware.
+* **Supported Mission Profiles:**
+  1. **Solar Array Photovoltaic Raster:** Orthogonal lawnmower grid scanning panels, with thermal hotspot anomalies.
+  2. **Wind Turbine Helical Ascent:** Ascending spiral pattern around a 90m turbine hub, simulating aerodynamic rotor flutter.
+  3. **Cell Tower Cylindrical Scan:** Circular orbital scan of RF antenna arrays with compass magnetic drift.
+  4. **Multi-UAV Tactical Swarm:** Coordinated V-Formation, Echelon Right, and Column Trail multi-drone flights with wake-vortex downwash separation matrices.
+* **Database Integration:** Formats telemetry into RFC 7946 compliant JSON, inserts into PostgreSQL, computes Random Forest risk scores, and triggers asynchronous Gemini AI report generation.
+
+---
+
+### Pillar 4: The 3D Interactive Mission Control (Dual-Screen Synchronizer)
+* **What it does:** Synchronizes the React web dashboard and the Unity Editor viewport in real-time.
+* **Features:**
+  1. **Cross-Viewport Targeting:** Clicking an anomaly marker or altitude peak on the 2D web map immediately commands the Unity SceneView camera to smoothly frame and orbit that coordinate.
+  2. **Subsystem Component Diagnostics:** Evaluates empirical RPM, thermal dissipation ($^\circ\text{C}$), and vibration (G-levels) across quadcopter motors (`Motor_1_FR`, `Motor_2_RL`, `Motor_3_FL`, `Motor_4_RR`), battery pack, and avionics IMU.
+  3. **1-Click Component Inspection:** Dispatches `unity_selection_focus_scene_view` to zoom in at a 0.45m close-up perspective of the stressed component with pulsating thermal emission.
+
+---
+
+### Interview Questions
+
+**Q: Why use Model Context Protocol (MCP) instead of a simple custom REST endpoint?**
+*A: Standardizing on MCP decouples the AI agent and backend from the specific engine implementation. The Unity MCP server exposes a rich, standard schema of 300+ game engine primitives (GameObjects, components, physics, lighting, play mode) via JSON-RPC 2.0 over stdio. Any MCP-compliant client or LLM can discover, validate, and execute operations with robust error reporting, multi-agent queue scheduling, and instance auto-discovery.*
+
+**Q: What happens if the Unity Editor is not running when an operator triggers a digital twin?**
+*A: AeroInsight uses a resilient graceful degradation pattern. If the Unity Editor or MCP server is unreachable, `unityMcpClient.js` catches the socket error without crashing. The backend proceeds to compute the full 3D equirectangular metric coordinates and aerodynamic differential equations locally, returning them to the React frontend where an embedded 3D spatial orbit canvas (`Interactive3DTrajectory.jsx`) renders the digital twin trajectory directly in WebGL.*
+
+**Q: How does AeroInsight verify that an anomaly was caused by physical environmental factors rather than sensor error?**
+*A: Through Concept 2 (Physics-Based Crash Analysis). The system models dynamic vertical drag and gravity against the logged descent profile, calculating the Coefficient of Determination ($R^2$) and Root-Mean-Square Error (RMSE). If the simulated physics match the logged altitude curve with $R^2 > 0.85$, the system verifies a physical failure (e.g. rotor loss or microburst); if $R^2$ is low, it points to sensor drift or electrical IMU failure.*
+

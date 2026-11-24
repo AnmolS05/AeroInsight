@@ -121,10 +121,11 @@ async function handleAssistantMessage(req, res, next) {
             const generatedFlightId = `SYNTH_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
             const flightName = `Synthetic: ${flightPattern} (${injectedAnomaly})`;
 
-            const client = await db.connect();
+            let client = null;
             let inTransaction = false;
 
             try {
+                client = await db.connect();
                 await client.query('BEGIN');
                 inTransaction = true;
 
@@ -144,6 +145,10 @@ async function handleAssistantMessage(req, res, next) {
                 );
 
                 const baselineRisk = mlService.predictRisk(points);
+                const riskLevel = baselineRisk.riskLevel || baselineRisk.level || 'Nominal';
+                const riskScore = baselineRisk.riskScore || baselineRisk.score || 0.1;
+                const riskFactors = Array.isArray(baselineRisk.reasons) ? baselineRisk.reasons.join(', ') : (Array.isArray(baselineRisk.details) ? baselineRisk.details.join(', ') : (baselineRisk.anomalies?.length ? `${baselineRisk.anomalies.length} anomaly flag(s)` : 'None detected'));
+
                 const initialReport = `# Flight Incident Report: ${generatedFlightId} (Synthetic Simulation)
 
 ## Executive Summary
@@ -153,8 +158,8 @@ This flight record was synthetically generated via the AeroInsight Simulation En
 - **Sample Count:** ${points.length} waypoints
 
 ## Deterministic ML Assessment
-- **Calculated Risk Level:** ${baselineRisk.level} (${(baselineRisk.score * 100).toFixed(1)}%)
-- **Primary Factors:** ${baselineRisk.reasons.join(', ')}
+- **Calculated Risk Level:** ${riskLevel} (${(riskScore * 100).toFixed(1)}%)
+- **Primary Factors:** ${riskFactors}
 
 ---
 *Deep avionics inspection will be updated upon completion.*
@@ -168,11 +173,39 @@ This flight record was synthetically generated via the AeroInsight Simulation En
 
                 await client.query('COMMIT');
                 inTransaction = false;
-            } catch (dbErr) {
-                if (inTransaction) await client.query('ROLLBACK');
-                throw dbErr;
-            } finally {
                 client.release();
+                client = null;
+            } catch (dbErr) {
+                if (inTransaction && client) {
+                    try { await client.query('ROLLBACK'); } catch {}
+                }
+                if (client) {
+                    try { client.release(); } catch {}
+                    client = null;
+                }
+                console.warn(`[AeroInsight AI Copilot] Database write fallback (${dbErr.message}). Storing in resilient memory store.`);
+                if (db.inMemoryStore) {
+                    const baselineRisk = mlService.predictRisk(points);
+                    const riskLevel = baselineRisk.riskLevel || baselineRisk.level || 'Nominal';
+                    const riskScore = baselineRisk.riskScore || baselineRisk.score || 0.1;
+                    const riskFactors = Array.isArray(baselineRisk.reasons) ? baselineRisk.reasons.join(', ') : (Array.isArray(baselineRisk.details) ? baselineRisk.details.join(', ') : (baselineRisk.anomalies?.length ? `${baselineRisk.anomalies.length} anomaly flag(s)` : 'None detected'));
+
+                    const fallbackReport = `# Flight Incident Report: ${generatedFlightId} (Synthetic Simulation)
+
+## Executive Summary
+This flight record was synthetically generated via the AeroInsight Simulation Engine.
+- **Flight Pattern:** ${flightPattern}
+- **Injected Scenario:** ${injectedAnomaly}
+- **Sample Count:** ${points.length} waypoints
+
+## Deterministic ML Assessment
+- **Calculated Risk Level:** ${riskLevel} (${(riskScore * 100).toFixed(1)}%)
+- **Primary Factors:** ${riskFactors}
+`;
+                    db.inMemoryStore.saveFlight(generatedFlightId, { created_at: new Date().toISOString() });
+                    db.inMemoryStore.saveTelemetry(generatedFlightId, points);
+                    db.inMemoryStore.saveReport(generatedFlightId, fallbackReport);
+                }
             }
 
             return res.status(200).json({

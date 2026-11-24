@@ -39,20 +39,44 @@ exports.uploadFlight = async (req, res, next) => {
         return next(err);
     }
 
-    const client = await db.connect();
+    let client = null;
     let inTransaction = false;
+    const flightId = crypto.randomUUID();
+
+    // 1. Compute Deterministic ML Flight Risk Assessment immediately
+    const mlAnalysis = mlService.analyzeFlightRisk(telemetryData);
+    let mlSection = '';
+    if (mlAnalysis) {
+        mlSection = `\n\n### 🤖 ML Flight Risk Assessment\n- **Predicted Risk:** ${mlAnalysis.riskScore === 'High Risk' ? '**🔴 High Risk**' : '**🟢 Low Risk**'}\n- **Telemetry Profile:**\n  - Peak Altitude: **${mlAnalysis.features.max_altitude.toFixed(1)}m**\n  - Battery Depletion: **${mlAnalysis.features.battery_drain.toFixed(1)}%**\n  - Flight Duration: **${mlAnalysis.features.flight_duration.toFixed(1)} min**\n  - Average Velocity: **${mlAnalysis.features.avg_speed.toFixed(1)} m/s**\n`;
+    }
+
+    // 2. Synthesize AI Analysis with timeout race for Serverless execution guarantees
+    let reportText = '';
+    try {
+        const aiResult = await Promise.race([
+            geminiService.analyzeFlightTelemetry(telemetryData),
+            new Promise((resolve) => setTimeout(() => resolve({
+                reportText: '### 🤖 Autonomous Mission Evaluation\n\nTelemetry points logged successfully. Real-time GenAI briefing scheduled.',
+                isSuccessful: false
+            }), 6500))
+        ]);
+        reportText = (aiResult.reportText || '### 🤖 Autonomous Mission Evaluation') + mlSection;
+    } catch (aiErr) {
+        console.warn('Initial flight upload AI evaluation bypassed:', aiErr.message || aiErr);
+        reportText = `### 🤖 Autonomous Mission Evaluation\n\nTelemetry points recorded successfully.${mlSection}\n\n*Click **Regenerate Report** to refresh the GenAI briefing.*`;
+    }
 
     try {
-        const flightId = crypto.randomUUID();
+        client = await db.connect();
 
         // Start ACID Transaction
         await client.query('BEGIN');
         inTransaction = true;
 
-        // 1. Insert Flight Record
+        // 3. Insert Flight Record
         await client.query('INSERT INTO flights (id) VALUES ($1)', [flightId]);
 
-        // 2. Insert Telemetry points via Bulk Insert (UNNEST) to optimize throughput
+        // 4. Insert Telemetry points via Bulk Insert (UNNEST) to optimize throughput
         const latitudes = telemetryData.map((p) => p.latitude);
         const longitudes = telemetryData.map((p) => p.longitude);
         const altitudes = telemetryData.map((p) => p.altitude);
@@ -65,29 +89,6 @@ exports.uploadFlight = async (req, res, next) => {
             SELECT $1, unnest($2::real[]), unnest($3::real[]), unnest($4::real[]), unnest($5::real[]), unnest($6::text[]), unnest($7::text[])
         `, [flightId, latitudes, longitudes, altitudes, batteries, issues, timestamps]);
 
-        // 3. Compute Deterministic ML Flight Risk Assessment immediately
-        const mlAnalysis = mlService.analyzeFlightRisk(telemetryData);
-        let mlSection = '';
-        if (mlAnalysis) {
-            mlSection = `\n\n### 🤖 ML Flight Risk Assessment\n- **Predicted Risk:** ${mlAnalysis.riskScore === 'High Risk' ? '**🔴 High Risk**' : '**🟢 Low Risk**'}\n- **Telemetry Profile:**\n  - Peak Altitude: **${mlAnalysis.features.max_altitude.toFixed(1)}m**\n  - Battery Depletion: **${mlAnalysis.features.battery_drain.toFixed(1)}%**\n  - Flight Duration: **${mlAnalysis.features.flight_duration.toFixed(1)} min**\n  - Average Velocity: **${mlAnalysis.features.avg_speed.toFixed(1)} m/s**\n`;
-        }
-
-        // 4. Synthesize AI Analysis with timeout race for Serverless execution guarantees
-        let reportText = '';
-        try {
-            const aiResult = await Promise.race([
-                geminiService.analyzeFlightTelemetry(telemetryData),
-                new Promise((resolve) => setTimeout(() => resolve({
-                    reportText: '### 🤖 Autonomous Mission Evaluation\n\nTelemetry points logged successfully. Real-time GenAI briefing scheduled.',
-                    isSuccessful: false
-                }), 6500))
-            ]);
-            reportText = (aiResult.reportText || '### 🤖 Autonomous Mission Evaluation') + mlSection;
-        } catch (aiErr) {
-            console.warn('Initial flight upload AI evaluation bypassed:', aiErr.message || aiErr);
-            reportText = `### 🤖 Autonomous Mission Evaluation\n\nTelemetry points recorded successfully.${mlSection}\n\n*Click **Regenerate Report** to refresh the GenAI briefing.*`;
-        }
-
         // 5. Save Initial Baseline Report & Commit Transaction
         await client.query('INSERT INTO reports (flight_id, report_text) VALUES ($1, $2)', [flightId, reportText]);
         await client.query('COMMIT');
@@ -95,16 +96,25 @@ exports.uploadFlight = async (req, res, next) => {
 
         return res.status(201).json({ message: 'Flight uploaded and analyzed successfully', flightId });
     } catch (error) {
-        if (inTransaction) {
+        if (inTransaction && client) {
             try {
                 await client.query('ROLLBACK');
             } catch (rollbackErr) {
                 console.error('Failed to rollback transaction:', rollbackErr.message);
             }
         }
+        if (db.inMemoryStore) {
+            console.warn(`[AeroInsight Flight Controller] Database offline (${error.message}). Saving to resilient memory store.`);
+            db.inMemoryStore.saveFlight(flightId, { id: flightId, created_at: new Date().toISOString() });
+            db.inMemoryStore.saveTelemetry(flightId, telemetryData);
+            db.inMemoryStore.saveReport(flightId, reportText);
+            return res.status(201).json({ message: 'Flight uploaded and analyzed successfully', flightId });
+        }
         next(error);
     } finally {
-        client.release();
+        if (client) {
+            try { client.release(); } catch {}
+        }
     }
 };
 
@@ -117,8 +127,22 @@ exports.uploadFlight = async (req, res, next) => {
  */
 exports.getFlights = async (req, res, next) => {
     try {
-        const result = await db.query('SELECT * FROM flights ORDER BY created_at DESC');
-        res.json(result.rows);
+        let dbRows = [];
+        try {
+            const result = await db.query('SELECT * FROM flights ORDER BY created_at DESC');
+            dbRows = result.rows || [];
+        } catch {}
+
+        const memFlights = db.inMemoryStore ? db.inMemoryStore.getFlights() : [];
+        const seen = new Set(dbRows.map((f) => f.id));
+        const combined = [...dbRows];
+        for (const mf of memFlights) {
+            if (!seen.has(mf.id)) {
+                combined.unshift(mf);
+                seen.add(mf.id);
+            }
+        }
+        res.json(combined);
     } catch (err) {
         next(err);
     }
@@ -134,8 +158,15 @@ exports.getFlights = async (req, res, next) => {
 exports.getFlightData = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const result = await db.query('SELECT * FROM telemetry WHERE flight_id = $1 ORDER BY timestamp ASC', [id]);
-        res.json(result.rows);
+        try {
+            const result = await db.query('SELECT * FROM telemetry WHERE flight_id = $1 ORDER BY timestamp ASC', [id]);
+            if (result && result.rows && result.rows.length > 0) {
+                return res.json(result.rows);
+            }
+        } catch {}
+
+        const memTel = db.inMemoryStore ? db.inMemoryStore.getTelemetry(id) : [];
+        res.json(memTel);
     } catch (err) {
         next(err);
     }
@@ -151,17 +182,26 @@ exports.getFlightData = async (req, res, next) => {
 exports.getFlightReport = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const result = await db.query('SELECT report_text FROM reports WHERE flight_id = $1', [id]);
-        if (result.rows.length === 0) {
-            const err = new Error('Report not found');
-            err.statusCode = 404;
-            return next(err);
+        try {
+            const result = await db.query('SELECT report_text FROM reports WHERE flight_id = $1', [id]);
+            if (result && result.rows && result.rows.length > 0) {
+                return res.json({ report: result.rows[0].report_text });
+            }
+        } catch {}
+
+        const memRep = db.inMemoryStore ? db.inMemoryStore.getReport(id) : null;
+        if (memRep) {
+            return res.json({ report: memRep });
         }
-        res.json({ report: result.rows[0].report_text });
+
+        const err = new Error('Report not found');
+        err.statusCode = 404;
+        return next(err);
     } catch (err) {
         next(err);
     }
 };
+
 
 /**
  * Re-analyzes flight telemetry data and updates the persistent evaluation report
@@ -176,13 +216,23 @@ exports.regenerateFlightReport = async (req, res, next) => {
         const { id } = req.params;
         
         // 1. Fetch telemetry data
-        const telemetryResult = await db.query('SELECT * FROM telemetry WHERE flight_id = $1 ORDER BY timestamp ASC', [id]);
-        if (telemetryResult.rows.length === 0) {
+        let telemetryData = [];
+        try {
+            const telemetryResult = await db.query('SELECT * FROM telemetry WHERE flight_id = $1 ORDER BY timestamp ASC', [id]);
+            if (telemetryResult && telemetryResult.rows && telemetryResult.rows.length > 0) {
+                telemetryData = telemetryResult.rows;
+            }
+        } catch {}
+
+        if (telemetryData.length === 0 && db.inMemoryStore) {
+            telemetryData = db.inMemoryStore.getTelemetry(id);
+        }
+
+        if (!telemetryData || telemetryData.length === 0) {
             const err = new Error('Flight telemetry not found');
             err.statusCode = 404;
             return next(err);
         }
-        const telemetryData = telemetryResult.rows;
 
         // 2. Trigger resilient AI Analysis with model fallback and retries
         const aiResult = await geminiService.analyzeFlightTelemetry(telemetryData);
@@ -195,9 +245,15 @@ exports.regenerateFlightReport = async (req, res, next) => {
         }
 
         // 3. Update AI Report in Database (upsert or update)
-        const updateResult = await db.query('UPDATE reports SET report_text = $1 WHERE flight_id = $2', [reportText, id]);
-        if (updateResult.rowCount === 0) {
-            await db.query('INSERT INTO reports (flight_id, report_text) VALUES ($1, $2)', [id, reportText]);
+        try {
+            const updateResult = await db.query('UPDATE reports SET report_text = $1 WHERE flight_id = $2', [reportText, id]);
+            if (updateResult.rowCount === 0) {
+                await db.query('INSERT INTO reports (flight_id, report_text) VALUES ($1, $2)', [id, reportText]);
+            }
+        } catch {}
+
+        if (db.inMemoryStore) {
+            db.inMemoryStore.saveReport(id, reportText);
         }
 
         res.json({ report: reportText });
@@ -216,11 +272,23 @@ exports.regenerateFlightReport = async (req, res, next) => {
 exports.deleteFlight = async (req, res, next) => {
     try {
         const { id } = req.params;
-        await db.query('DELETE FROM telemetry WHERE flight_id = $1', [id]);
-        await db.query('DELETE FROM reports WHERE flight_id = $1', [id]);
-        const result = await db.query('DELETE FROM flights WHERE id = $1', [id]);
-        
-        if (result.rowCount === 0) {
+        let deletedFromDb = false;
+        try {
+            await db.query('DELETE FROM telemetry WHERE flight_id = $1', [id]);
+            await db.query('DELETE FROM reports WHERE flight_id = $1', [id]);
+            const result = await db.query('DELETE FROM flights WHERE id = $1', [id]);
+            if (result && result.rowCount > 0) {
+                deletedFromDb = true;
+            }
+        } catch {}
+
+        let deletedFromMem = false;
+        if (db.inMemoryStore && db.inMemoryStore.flights.has(id)) {
+            db.inMemoryStore.deleteFlight(id);
+            deletedFromMem = true;
+        }
+
+        if (!deletedFromDb && !deletedFromMem) {
             const err = new Error('Flight not found');
             err.statusCode = 404;
             return next(err);

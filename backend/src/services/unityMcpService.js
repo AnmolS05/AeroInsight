@@ -10,6 +10,7 @@
 
 const http = require('http');
 const crypto = require('crypto');
+const unityMcpClient = require('./unityMcpClient');
 
 const UNITY_BRIDGE_HOST = process.env.UNITY_BRIDGE_HOST || '127.0.0.1';
 const UNITY_BRIDGE_PORT = parseInt(process.env.UNITY_BRIDGE_PORT || '7890', 10);
@@ -1041,5 +1042,11 @@ module.exports = {
     generateBlackBoxFDRReport,
     calculateSubsystemHealth,
     inspectDroneComponent,
+    getMcpStatus: unityMcpClient.checkMcpStatus,
+    executeMcpTool: unityMcpClient.callMcpTool,
+    constructDigitalTwinViaMcp: unityMcpClient.constructDigitalTwinViaMcp,
+    simulatePhysicsCrashViaMcp: unityMcpClient.simulatePhysicsCrashViaMcp,
+    focusMissionControlViaMcp: unityMcpClient.focusMissionControlViaMcp,
 };
+
 

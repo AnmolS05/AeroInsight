@@ -1,10 +1,12 @@
 const { Pool } = require('pg');
 
+const isLocalDb = !process.env.DATABASE_URL || process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1');
+
 const db = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DB_SSL_REJECT_UNAUTHORIZED === 'false' 
+    ssl: isLocalDb ? false : (process.env.DB_SSL_REJECT_UNAUTHORIZED === 'false' 
         ? { rejectUnauthorized: false } 
-        : true // Default to secure validation
+        : true)
 });
 
 db.on('error', (err) => {
@@ -54,9 +56,44 @@ const initDB = async () => {
             )
         `);
     } catch (err) {
-        console.error('Database initialization error:', err);
+        console.error('Database initialization error:', err.message || err);
     }
 };
+
+// Resilient In-Memory Fallback Store (active when PostgreSQL is disconnected or starting up)
+const inMemoryStore = {
+    flights: new Map(),
+    telemetry: new Map(),
+    reports: new Map(),
+
+    saveFlight(id, data = {}) {
+        const record = { id, created_at: data.created_at || new Date().toISOString() };
+        this.flights.set(id, record);
+        return record;
+    },
+    saveTelemetry(flightId, points = []) {
+        this.telemetry.set(flightId, points);
+    },
+    saveReport(flightId, reportText) {
+        this.reports.set(flightId, reportText);
+    },
+    getFlights() {
+        return Array.from(this.flights.values());
+    },
+    getTelemetry(flightId) {
+        return this.telemetry.get(flightId) || [];
+    },
+    getReport(flightId) {
+        return this.reports.get(flightId) || null;
+    },
+    deleteFlight(flightId) {
+        this.flights.delete(flightId);
+        this.telemetry.delete(flightId);
+        this.reports.delete(flightId);
+    }
+};
+
+db.inMemoryStore = inMemoryStore;
 
 initDB();
 

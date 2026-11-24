@@ -41,19 +41,29 @@ exports.reconstructFlight = async (req, res, next) => {
     try {
         const { id } = req.params;
 
-        // Fetch flight telemetry from database
-        const telemetryResult = await db.query(
-            'SELECT latitude, longitude, altitude, battery, issue, timestamp FROM telemetry WHERE flight_id = $1 ORDER BY id ASC',
-            [id]
-        );
+        // Fetch flight telemetry from database or in-memory fallback
+        let telemetryPoints = [];
+        try {
+            const telemetryResult = await db.query(
+                'SELECT latitude, longitude, altitude, battery, issue, timestamp FROM telemetry WHERE flight_id = $1 ORDER BY id ASC',
+                [id]
+            );
+            if (telemetryResult && telemetryResult.rows && telemetryResult.rows.length > 0) {
+                telemetryPoints = telemetryResult.rows;
+            }
+        } catch {}
 
-        if (telemetryResult.rows.length === 0) {
+        if (telemetryPoints.length === 0 && db.inMemoryStore) {
+            telemetryPoints = db.inMemoryStore.getTelemetry(id);
+        }
+
+        if (telemetryPoints.length === 0) {
             const err = new Error(`Flight with ID '${id}' not found or contains no telemetry.`);
             err.statusCode = 404;
             return next(err);
         }
 
-        const reconstruction = await unityMcpService.reconstructDigitalTwin(id, telemetryResult.rows);
+        const reconstruction = await unityMcpService.reconstructDigitalTwin(id, telemetryPoints);
 
         res.json({
             success: true,
@@ -165,42 +175,17 @@ const syntheticRequestSchema = z.object({
  * @param {import('express').NextFunction} next - Express next middleware.
  */
 exports.createSyntheticFlight = async (req, res, next) => {
-    const parsed = syntheticRequestSchema.safeParse(req.body || {});
-    if (!parsed.success) {
-        const err = new Error('Invalid synthetic generation options: ' + JSON.stringify(parsed.error.errors));
-        err.statusCode = 400;
-        return next(err);
-    }
-
-    const options = parsed.data;
-    const telemetryData = unityMcpService.generateSyntheticTelemetryPoints(options);
-    const flightId = `SYNTH_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-
-    const client = await db.connect();
-    let inTransaction = false;
-
     try {
-        await client.query('BEGIN');
-        inTransaction = true;
+        const parsed = syntheticRequestSchema.safeParse(req.body || {});
+        if (!parsed.success) {
+            const err = new Error('Invalid synthetic generation options: ' + JSON.stringify(parsed.error.errors));
+            err.statusCode = 400;
+            return next(err);
+        }
 
-        // 1. Insert Flight Record
-        await client.query('INSERT INTO flights (id) VALUES ($1)', [flightId]);
-
-        // 2. Insert Telemetry points via Bulk Insert
-        const latitudes = telemetryData.map((p) => p.latitude);
-        const longitudes = telemetryData.map((p) => p.longitude);
-        const altitudes = telemetryData.map((p) => p.altitude);
-        const batteries = telemetryData.map((p) => p.battery);
-        const issues = telemetryData.map((p) => p.issue || 'none');
-        const timestamps = telemetryData.map((p) => p.timestamp);
-
-        await client.query(
-            `INSERT INTO telemetry (flight_id, latitude, longitude, altitude, battery, issue, timestamp)
-             SELECT $1, unnest($2::real[]), unnest($3::real[]), unnest($4::real[]), unnest($5::real[]), unnest($6::text[]), unnest($7::text[])`,
-            [flightId, latitudes, longitudes, altitudes, batteries, issues, timestamps]
-        );
-
-        // 3. Deterministic ML Risk Assessment
+        const options = parsed.data;
+        const telemetryData = unityMcpService.generateSyntheticTelemetryPoints(options);
+        const flightId = `SYNTH_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
         const baselineRisk = mlService.predictRisk(telemetryData);
         const initialReport = `# Flight Incident Report: ${flightId} (Synthetic Simulation)
 
@@ -217,26 +202,66 @@ This flight record was synthetically generated via the AeroInsight Simulation En
 
 *A comprehensive AI diagnostic evaluation is being processed in the background.*`;
 
-        await client.query(
-            'INSERT INTO reports (flight_id, report_text) VALUES ($1, $2)',
-            [flightId, initialReport]
-        );
+        let client = null;
+        let inTransaction = false;
 
-        await client.query('COMMIT');
-        inTransaction = false;
-        client.release();
+        try {
+            client = await db.connect();
+            await client.query('BEGIN');
+            inTransaction = true;
+
+            // 1. Insert Flight Record
+            await client.query('INSERT INTO flights (id) VALUES ($1)', [flightId]);
+
+            // 2. Insert Telemetry points via Bulk Insert
+            const latitudes = telemetryData.map((p) => p.latitude);
+            const longitudes = telemetryData.map((p) => p.longitude);
+            const altitudes = telemetryData.map((p) => p.altitude);
+            const batteries = telemetryData.map((p) => p.battery);
+            const issues = telemetryData.map((p) => p.issue || 'none');
+            const timestamps = telemetryData.map((p) => p.timestamp);
+
+            await client.query(
+                `INSERT INTO telemetry (flight_id, latitude, longitude, altitude, battery, issue, timestamp)
+                 SELECT $1, unnest($2::real[]), unnest($3::real[]), unnest($4::real[]), unnest($5::real[]), unnest($6::text[]), unnest($7::text[])`,
+                [flightId, latitudes, longitudes, altitudes, batteries, issues, timestamps]
+            );
+
+            // 3. Insert Report
+            await client.query(
+                'INSERT INTO reports (flight_id, report_text) VALUES ($1, $2)',
+                [flightId, initialReport]
+            );
+
+            await client.query('COMMIT');
+            inTransaction = false;
+            client.release();
+            client = null;
+        } catch (dbErr) {
+            if (inTransaction && client) {
+                try { await client.query('ROLLBACK'); } catch {}
+            }
+            if (client) {
+                try { client.release(); } catch {}
+                client = null;
+            }
+            console.warn(`[AeroInsight] Database write fallback (${dbErr.message}). Storing flight '${flightId}' in resilient memory store.`);
+            if (db.inMemoryStore) {
+                db.inMemoryStore.saveFlight(flightId, { created_at: new Date().toISOString() });
+                db.inMemoryStore.saveTelemetry(flightId, telemetryData);
+                db.inMemoryStore.saveReport(flightId, initialReport);
+            }
+        }
 
         // 4. Asynchronously generate deep AI diagnostic report via Gemini
         setImmediate(async () => {
             try {
                 const deepAiReport = await geminiService.generateFlightReport(flightId, telemetryData);
-                await db.query(
-                    'UPDATE reports SET report_text = $1 WHERE flight_id = $2',
-                    [deepAiReport, flightId]
-                );
-            } catch (aiErr) {
-                console.warn(`[AeroInsight] Background AI synthesis for ${flightId} deferred: ${aiErr.message}`);
-            }
+                if (db.inMemoryStore) {
+                    db.inMemoryStore.saveReport(flightId, deepAiReport);
+                }
+                await db.query('UPDATE reports SET report_text = $1 WHERE flight_id = $2', [deepAiReport, flightId]);
+            } catch {}
         });
 
         res.status(201).json({
@@ -250,14 +275,6 @@ This flight record was synthetically generated via the AeroInsight Simulation En
             },
         });
     } catch (err) {
-        if (inTransaction) {
-            try {
-                await client.query('ROLLBACK');
-            } catch (rollbackErr) {
-                console.error('Rollback error:', rollbackErr.message);
-            }
-        }
-        client.release();
         next(err);
     }
 };
@@ -423,6 +440,237 @@ exports.inspectComponent = async (req, res, next) => {
             status: subsystemHealth.status,
             allSubsystems: subsystemHealth.subsystems,
             bridge: bridgeResult,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * Generates synthetic telemetry via the Unity MCP engine (C# SyntheticTelemetryEngine),
+ * persists result to the database, and returns the flight ID.
+ * Supports both single UAV missions and coordinated multi-UAV swarm missions.
+ */
+exports.generateSyntheticViaMcp = async (req, res, next) => {
+    try {
+        const options = req.body || {};
+        const isSwarm = Boolean(options.isSwarmMode || (options.swarmCount && options.swarmCount > 1));
+        let telemetryData;
+        let flightId;
+        let swarmMeta = null;
+
+        if (isSwarm) {
+            const swarmData = unityMcpService.generateSwarmMissionTelemetry(options);
+            telemetryData = swarmData.leader;
+            swarmMeta = swarmData.deconfliction;
+            flightId = `SWARM_MCP_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+        } else {
+            telemetryData = unityMcpService.generateSyntheticTelemetryPoints(options);
+            flightId = `SYNTH_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+        }
+
+        const baselineRisk = mlService.predictRisk(telemetryData);
+        const initialReport = `# Flight Incident Report: ${flightId} (MCP Synthetic — Unity Engine)
+
+## Executive Summary
+This synthetic mission was generated via the Unity MCP engine pipeline.
+- **Flight Mode:** ${isSwarm ? `Tactical Swarm (${options.swarmCount || 2} UAVs, ${options.formation || 'V-Formation'})` : 'Single UAV'}
+- **Flight Pattern:** ${options.flightPattern || 'LawnmowerSurvey'}
+- **Injected Scenario:** ${options.injectedAnomaly || 'None'} (triggered at second ${options.anomalyStartSecond || 40})
+- **Sample Count:** ${telemetryData.length} waypoints
+
+## Deterministic ML Assessment
+- **Risk Level:** ${baselineRisk.riskLevel}
+- **Risk Score:** ${(baselineRisk.riskScore * 100).toFixed(1)}%
+
+*Deep avionics inspection will be updated upon completion.*`;
+
+        let client = null;
+        let inTransaction = false;
+
+        try {
+            client = await db.connect();
+            await client.query('BEGIN');
+            inTransaction = true;
+
+            await client.query('INSERT INTO flights (id) VALUES ($1)', [flightId]);
+
+            const latitudes = telemetryData.map((p) => p.latitude);
+            const longitudes = telemetryData.map((p) => p.longitude);
+            const altitudes = telemetryData.map((p) => p.altitude);
+            const batteries = telemetryData.map((p) => p.battery);
+            const issues = telemetryData.map((p) => p.issue || 'none');
+            const timestamps = telemetryData.map((p) => p.timestamp);
+
+            await client.query(
+                `INSERT INTO telemetry (flight_id, latitude, longitude, altitude, battery, issue, timestamp)
+                 SELECT $1, unnest($2::real[]), unnest($3::real[]), unnest($4::real[]), unnest($5::real[]), unnest($6::text[]), unnest($7::text[])`,
+                [flightId, latitudes, longitudes, altitudes, batteries, issues, timestamps]
+            );
+
+            await client.query(
+                'INSERT INTO reports (flight_id, report_text) VALUES ($1, $2)',
+                [flightId, initialReport]
+            );
+
+            await client.query('COMMIT');
+            inTransaction = false;
+            client.release();
+            client = null;
+        } catch (dbErr) {
+            if (inTransaction && client) {
+                try { await client.query('ROLLBACK'); } catch {}
+            }
+            if (client) {
+                try { client.release(); } catch {}
+                client = null;
+            }
+            console.warn(`[AeroInsight] MCP synthetic DB fallback (${dbErr.message}). Storing in memory.`);
+            if (db.inMemoryStore) {
+                db.inMemoryStore.saveFlight(flightId, { created_at: new Date().toISOString() });
+                db.inMemoryStore.saveTelemetry(flightId, telemetryData);
+                db.inMemoryStore.saveReport(flightId, initialReport);
+            }
+        }
+
+        setImmediate(async () => {
+            try {
+                const deepAiReport = await geminiService.generateFlightReport(flightId, telemetryData);
+                if (db.inMemoryStore) {
+                    db.inMemoryStore.saveReport(flightId, deepAiReport);
+                }
+                await db.query('UPDATE reports SET report_text = $1 WHERE flight_id = $2', [deepAiReport, flightId]);
+            } catch {}
+        });
+
+        res.status(201).json({
+            success: true,
+            flightId,
+            message: `MCP synthetic flight '${flightId}' generated via Unity engine.`,
+            meta: {
+                flightPattern: options.flightPattern,
+                injectedAnomaly: options.injectedAnomaly,
+                waypointCount: telemetryData.length,
+                isSwarm,
+                deconfliction: swarmMeta,
+            },
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * Retrieves the connection status, capabilities, and tool inventory from the local Unity MCP Server.
+ *
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ */
+exports.getMcpStatus = async (req, res, next) => {
+    try {
+        const mcpStatus = await unityMcpService.getMcpStatus();
+        res.json({
+            success: true,
+            data: mcpStatus,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * Executes a tool on the Unity MCP Server dynamically.
+ *
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ */
+exports.executeMcpTool = async (req, res, next) => {
+    try {
+        const { toolName, args = {} } = req.body;
+        if (!toolName) {
+            const err = new Error('toolName is required for MCP tool execution.');
+            err.statusCode = 400;
+            return next(err);
+        }
+
+        const execution = await unityMcpService.executeMcpTool(toolName, args);
+        res.json({
+            success: execution.success,
+            data: execution,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * Reconstructs a flight's 3D digital twin directly via Unity Model Context Protocol (MCP) tools.
+ * Implements Concept 1: The AI Digital Twin Creator.
+ *
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ */
+exports.reconstructMcpTwin = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        let telemetryPoints = [];
+        try {
+            const telemetryResult = await db.query(
+                'SELECT latitude, longitude, altitude, battery, issue, timestamp FROM telemetry WHERE flight_id = $1 ORDER BY id ASC',
+                [id]
+            );
+            if (telemetryResult && telemetryResult.rows && telemetryResult.rows.length > 0) {
+                telemetryPoints = telemetryResult.rows;
+            }
+        } catch {}
+
+        if (telemetryPoints.length === 0 && db.inMemoryStore) {
+            telemetryPoints = db.inMemoryStore.getTelemetry(id);
+        }
+
+        if (telemetryPoints.length === 0) {
+            const err = new Error(`Flight with ID '${id}' not found or contains no telemetry.`);
+            err.statusCode = 404;
+            return next(err);
+        }
+
+        const result = await unityMcpService.constructDigitalTwinViaMcp(id, telemetryPoints);
+        res.json({
+            success: true,
+            data: result,
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+/**
+ * Simulates a crash or anomaly incident directly via Unity MCP tools (spawning Rigidbody, colliders, play mode).
+ * Implements Concept 2: Physics-Based Anomaly Reconstruction & Crash Analysis.
+ *
+ * @param {import('express').Request} req - Express request.
+ * @param {import('express').Response} res - Express response.
+ * @param {import('express').NextFunction} next - Express next middleware.
+ */
+exports.simulateMcpCrash = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { scenario = 'Rotor Failure', windSpeedKnots = 25, altitudeDropMeters = 38.5 } = req.body || {};
+
+        const result = await unityMcpService.simulatePhysicsCrashViaMcp({
+            flightId: id,
+            scenario,
+            windSpeedKnots,
+            altitudeDropMeters,
+        });
+
+        res.json({
+            success: true,
+            data: result,
         });
     } catch (err) {
         next(err);

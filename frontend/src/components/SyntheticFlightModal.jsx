@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Sparkles, PlaneTakeoff, AlertTriangle, Play, RefreshCw, 
   Compass, Sun, Wind, Radio, Activity, Gauge, BatteryCharging, Zap,
-  Users, ShieldCheck
+  Users, ShieldCheck, Cpu
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -130,6 +130,7 @@ export default function SyntheticFlightModal({ isOpen, onClose, onFlightCreated,
   const [altitude, setAltitude] = useState(30);
   const [onsetPercent, setOnsetPercent] = useState(65);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [useMcpEngine, setUseMcpEngine] = useState(false);
 
   // Multi-Drone Swarm Configuration
   const [isSwarmMode, setIsSwarmMode] = useState(false);
@@ -151,7 +152,59 @@ export default function SyntheticFlightModal({ isOpen, onClose, onFlightCreated,
     toast.success(`Loaded preset: ${preset.name}`, { duration: 1500 });
   };
 
+  const handleGenerateMcp = async () => {
+    setIsGenerating(true);
+    const toastId = toast.loading(
+      isSwarmMode
+        ? `Dispatching ${swarmCount}-UAV tactical swarm mission via Unity MCP engine...`
+        : 'Executing synthetic mission via Unity MCP engine...'
+    );
+
+    try {
+      const payload = {
+        flightPattern: pattern,
+        injectedAnomaly: anomaly,
+        baseAltitudeMeters: altitude,
+        totalDurationSeconds: duration,
+        anomalyStartSecond: anomalyOnsetSec,
+        isSwarmMode,
+        swarmCount,
+        formation,
+        separationMeters
+      };
+
+      const res = await fetch(`${apiUrl}/api/unity/mcp-generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(
+          isSwarmMode
+            ? `MCP Swarm mission '${json.flightId}' deployed with ${swarmCount} coordinated UAVs!`
+            : `MCP Synthetic mission '${json.flightId}' dispatched to Unity engine!`,
+          { id: toastId }
+        );
+        if (onFlightCreated) {
+          onFlightCreated(json.flightId);
+        }
+        onClose();
+      } else {
+        toast.error(json.message || 'MCP generation failed.', { id: toastId });
+      }
+    } catch (err) {
+      toast.error(`MCP generation error: ${err.message}`, { id: toastId });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleGenerate = async () => {
+    if (useMcpEngine) {
+      return handleGenerateMcp();
+    }
+
     setIsGenerating(true);
     const toastId = toast.loading(
       isSwarmMode
@@ -473,21 +526,55 @@ export default function SyntheticFlightModal({ isOpen, onClose, onFlightCreated,
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-white/10">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs text-white/60 hover:text-white hover:bg-white/5 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium text-xs shadow-lg shadow-purple-600/30 disabled:opacity-50 transition-all duration-200"
-            >
-              {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              Generate & Ingest Mission
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-white/10">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setUseMcpEngine((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                  useMcpEngine
+                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                    : 'bg-white/[0.04] border-white/10 text-neutral-400 hover:text-white'
+                }`}
+                title="Toggle default generation engine to MCP"
+              >
+                <Cpu className="w-3.5 h-3.5" />
+                {useMcpEngine ? 'MCP Engine Active' : 'Use MCP Engine'}
+              </button>
+              {useMcpEngine && (
+                <span className="text-[10px] text-emerald-400/80 font-mono">
+                  Direct Unity engine execution
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={onClose}
+                className="px-3.5 py-2 rounded-xl text-xs text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleGenerateMcp}
+                disabled={isGenerating}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-medium text-xs shadow-lg shadow-emerald-600/20 disabled:opacity-50 transition-all duration-200 active:scale-95"
+                title="Execute synthetic flight mission directly via local Unity MCP Server tools"
+              >
+                {isGenerating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Cpu className="w-3.5 h-3.5 text-emerald-200" />}
+                <span>Generate via Unity MCP</span>
+              </button>
+
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium text-xs shadow-lg shadow-purple-600/25 disabled:opacity-50 transition-all duration-200 active:scale-95"
+                title="Generate synthetic mission via standard telemetry engine and ingest into database"
+              >
+                {isGenerating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                <span>{useMcpEngine ? 'Run Active Mission' : 'Generate & Ingest'}</span>
+              </button>
+            </div>
           </div>
         </motion.div>
       </motion.div>
